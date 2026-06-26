@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Broiler.CSS.Dom</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Description>Selector matching and DOM-facing CSS services over the canonical Broiler DOM.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Broiler.CSS\Broiler.CSS.csproj" />
+    <ProjectReference Include="..\Broiler.DOM\Broiler.Dom\Broiler.Dom.csproj" />
+  </ItemGroup>
+
+</Project>
