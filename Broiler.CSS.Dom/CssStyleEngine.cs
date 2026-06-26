@@ -105,6 +105,29 @@ public sealed partial class CssStyleEngine
         return snapshot;
     }
 
+    /// <summary>
+    /// Returns the cascade-winning <em>declared</em> values for
+    /// <paramref name="element"/> from the registered stylesheets only: the raw
+    /// author values after origin/importance/specificity/source-order resolution
+    /// and value validation, but <em>without</em> inline styles, inheritance,
+    /// shorthand expansion, custom-property resolution, or initial-value backfill.
+    /// This is the specified-value view consumers such as anchor positioning need,
+    /// where an undeclared property must be reported as absent rather than as its
+    /// initial value (which <see cref="GetComputedStyle"/> would supply).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> GetCascadedDeclaredValues(
+        DomElement element,
+        string? pseudoElement = null)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (element is null)
+            return result;
+
+        ObserveDocument(element);
+        CollectCascadedDeclarations(element, NormalizePseudoElement(pseudoElement), result);
+        return result;
+    }
+
     private CssComputedStyle GetComputedStyleInternal(DomElement element, HashSet<DomElement> ancestorsInProgress)
     {
         var key = ((DomElement, string?))(element, null);
@@ -152,7 +175,10 @@ public sealed partial class CssStyleEngine
             if (!string.IsNullOrEmpty(inline))
             {
                 foreach (var (name, value, _) in ParseDeclarations(inline))
-                    computed[name] = value;
+                {
+                    if (IsAcceptableDeclarationValue(name, value))
+                        computed[name] = value;
+                }
             }
         }
 
@@ -266,6 +292,11 @@ public sealed partial class CssStyleEngine
         foreach (var declaration in styleRule.Declarations.Declarations)
         {
             if (!IsPropertyAllowedForPseudoElement(pseudoElement, declaration.Name))
+                continue;
+
+            // CSS error recovery: drop invalid declarations so a previously
+            // cascaded valid value wins rather than the invalid last-parsed one.
+            if (!IsAcceptableDeclarationValue(declaration.Name, declaration.Value.Text))
                 continue;
 
             var currentOrder = order++;
