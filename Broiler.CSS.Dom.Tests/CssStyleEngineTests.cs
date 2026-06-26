@@ -241,4 +241,78 @@ public sealed class CssStyleEngineTests
         var engine = EngineWith("div { color: red; }");
         Assert.Same(CssComputedStyle.Empty, engine.GetComputedStyle(null!));
     }
+
+    [Fact]
+    public void Invalid_Closed_Keyword_Value_Is_Discarded_Previous_Wins()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        // CSS error recovery: the invalid second declaration is dropped, so the
+        // earlier valid value remains the cascade winner.
+        var engine = EngineWith("#t { display: inline-block; display: supergrid; }");
+
+        Assert.Equal("inline-block", engine.GetComputedStyle(div).GetPropertyValue("display"));
+    }
+
+    [Theory]
+    [InlineData("visibility", "visible", "bogus")]
+    [InlineData("white-space", "nowrap", "supernowrap")]
+    [InlineData("overflow", "hidden", "everywhere")]
+    [InlineData("position", "relative", "levitating")]
+    public void Invalid_Keyword_Declaration_Is_Ignored(string property, string valid, string invalid)
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        var engine = EngineWith($"#t {{ {property}: {valid}; {property}: {invalid}; }}");
+
+        Assert.Equal(valid, engine.GetComputedStyle(div).GetPropertyValue(property));
+    }
+
+    [Fact]
+    public void Invalid_Vendor_Color_Is_Rejected_But_Standard_Prefixes_Pass()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        // -acid3-bogus is an unknown vendor color and must be dropped, leaving red.
+        var engine = EngineWith("#t { color: red; color: -acid3-bogus; }");
+
+        Assert.Equal("red", engine.GetComputedStyle(div).GetPropertyValue("color"));
+    }
+
+    [Fact]
+    public void Invalid_Inline_Declaration_Is_Discarded()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.SetAttribute("style", "display: bogusvalue;");
+        body.AppendChild(div);
+
+        // The invalid inline value is dropped; display falls back to the rule value.
+        var engine = EngineWith("div { display: flex; }");
+
+        Assert.Equal("flex", engine.GetComputedStyle(div).GetPropertyValue("display"));
+    }
+
+    [Fact]
+    public void Valid_Custom_Property_With_Closed_Keyword_Name_Is_Not_Validated()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        // Custom properties accept arbitrary values regardless of any longhand name.
+        var engine = EngineWith("#t { --display: supergrid; }");
+
+        Assert.Equal("supergrid", engine.GetComputedStyle(div).GetPropertyValue("--display"));
+    }
 }

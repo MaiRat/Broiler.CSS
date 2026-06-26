@@ -201,6 +201,146 @@ public sealed partial class CssStyleEngine
         return -1;
     }
 
+    // ---- Declaration value validation / error recovery --------------------
+
+    /// <summary>
+    /// CSS error recovery: returns <c>false</c> for values that are clearly
+    /// invalid for the given property, so an invalid declaration is dropped and a
+    /// previously cascaded valid value wins (CSS Syntax §4 / CSS 2.1 §4.1.8). Only
+    /// properties with a closed set of keyword values are validated; everything
+    /// else accepts any non-empty value. The supplied value must already have its
+    /// <c>!important</c> flag stripped (the engine tracks importance separately).
+    /// </summary>
+    private static bool IsAcceptableDeclarationValue(string property, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var v = value.Trim().ToLowerInvariant();
+
+        // CSS-wide keywords are always valid.
+        if (v is "inherit" or "initial" or "unset" or "revert")
+            return true;
+
+        // Custom-property references are validated after substitution, not during
+        // raw cascade, so keep them for the later var() resolution step.
+        if (v.IndexOf("var(", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+
+        switch (property.ToLowerInvariant())
+        {
+            case "white-space":
+                return v is "normal" or "nowrap" or "pre" or "pre-wrap"
+                    or "pre-line" or "break-spaces";
+
+            case "display":
+                return v is "block" or "inline" or "inline-block" or "none"
+                    or "flex" or "inline-flex" or "grid" or "inline-grid"
+                    or "table" or "table-row" or "table-cell" or "table-column"
+                    or "table-row-group" or "table-header-group"
+                    or "table-footer-group" or "table-column-group"
+                    or "table-caption" or "list-item" or "contents"
+                    or "run-in" or "flow-root";
+
+            case "position":
+                return v is "static" or "relative" or "absolute" or "fixed" or "sticky";
+
+            case "float":
+            case "css-float":
+                return v is "none" or "left" or "right" or "inline-start" or "inline-end";
+
+            case "clear":
+                return v is "none" or "left" or "right" or "both" or "inline-start" or "inline-end";
+
+            case "visibility":
+                return v is "visible" or "hidden" or "collapse";
+
+            case "overflow":
+            case "overflow-x":
+            case "overflow-y":
+                // CSS Overflow Level 3: one or two keywords.
+                foreach (var part in v.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (part is not ("visible" or "hidden" or "scroll" or "auto" or "clip"))
+                        return false;
+                }
+                return true;
+
+            case "text-align":
+                return v is "left" or "right" or "center" or "justify"
+                    or "start" or "end";
+
+            case "text-decoration-style":
+                return v is "solid" or "double" or "dotted" or "dashed" or "wavy";
+
+            case "text-transform":
+                return v is "none" or "capitalize" or "uppercase" or "lowercase" or "full-width";
+
+            case "vertical-align":
+                return v is "baseline" or "sub" or "super" or "text-top"
+                    or "text-bottom" or "middle" or "top" or "bottom"
+                    || IsLengthOrPercentage(v);
+
+            case "box-sizing":
+                return v is "content-box" or "border-box";
+
+            case "cursor":
+                return v is "auto" or "default" or "none" or "context-menu"
+                    or "help" or "pointer" or "progress" or "wait"
+                    or "cell" or "crosshair" or "text" or "vertical-text"
+                    or "alias" or "copy" or "move" or "no-drop"
+                    or "not-allowed" or "grab" or "grabbing"
+                    or "e-resize" or "n-resize" or "ne-resize" or "nw-resize"
+                    or "s-resize" or "se-resize" or "sw-resize" or "w-resize"
+                    or "ew-resize" or "ns-resize" or "nesw-resize" or "nwse-resize"
+                    or "col-resize" or "row-resize" or "all-scroll" or "zoom-in" or "zoom-out"
+                    || v.StartsWith("url(", StringComparison.Ordinal);
+
+            case "list-style-type":
+                return v is "disc" or "circle" or "square" or "decimal"
+                    or "decimal-leading-zero" or "lower-roman" or "upper-roman"
+                    or "lower-greek" or "lower-latin" or "upper-latin"
+                    or "armenian" or "georgian" or "lower-alpha" or "upper-alpha"
+                    or "none";
+
+            case "border-style":
+            case "border-top-style":
+            case "border-right-style":
+            case "border-bottom-style":
+            case "border-left-style":
+            case "outline-style":
+                return v is "none" or "hidden" or "dotted" or "dashed"
+                    or "solid" or "double" or "groove" or "ridge"
+                    or "inset" or "outset";
+
+            case "font-style":
+                return v is "normal" or "italic" or "oblique";
+
+            case "font-weight":
+                return v is "normal" or "bold" or "bolder" or "lighter"
+                    || (int.TryParse(v, out var w) && w is >= 1 and <= 1000);
+
+            case "color":
+            case "background-color":
+            case "border-color":
+            case "border-top-color":
+            case "border-right-color":
+            case "border-bottom-color":
+            case "border-left-color":
+            case "outline-color":
+                // Reject unknown vendor-prefixed values (e.g. -acid3-bogus) while
+                // accepting named colors, #hex, rgb()/hsl(), transparent, etc.
+                return !v.StartsWith('-')
+                    || v.StartsWith("-webkit-", StringComparison.Ordinal)
+                    || v.StartsWith("-moz-", StringComparison.Ordinal)
+                    || v.StartsWith("-ms-", StringComparison.Ordinal)
+                    || v.StartsWith("-o-", StringComparison.Ordinal);
+
+            default:
+                return true;
+        }
+    }
+
     // ---- Shorthand expansion ----------------------------------------------
 
     private static void ExpandCssShorthands(Dictionary<string, string> computed)
