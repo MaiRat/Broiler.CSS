@@ -1,3 +1,4 @@
 [submodule "Broiler.DOM"]
 	path = Broiler.DOM
 	url = https://github.com/MaiRat/Broiler.DOM.git
+	branch = main
