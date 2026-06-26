@@ -11,6 +11,33 @@ public sealed class CssStyleEngineTests
         return engine;
     }
 
+    // Splits a CSS value on commas that sit outside any parenthesised group —
+    // used to inspect per-layer background longhands in assertions.
+    private static List<string> SplitTopLevelCommas(string value)
+    {
+        var parts = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        int depth = 0;
+        foreach (char c in value)
+        {
+            if (c == '(') depth++;
+            else if (c == ')' && depth > 0) depth--;
+
+            if (c == ',' && depth == 0)
+            {
+                parts.Add(sb.ToString().Trim());
+                sb.Clear();
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        if (sb.Length > 0)
+            parts.Add(sb.ToString().Trim());
+        return parts;
+    }
+
     private static (DomDocument Document, DomElement Html, DomElement Body) NewDocument()
     {
         var document = new DomDocument();
@@ -119,6 +146,70 @@ public sealed class CssStyleEngineTests
         Assert.Equal("20px", style.GetPropertyValue("margin-right"));
         Assert.Equal("10px", style.GetPropertyValue("margin-bottom"));
         Assert.Equal("20px", style.GetPropertyValue("margin-left"));
+    }
+
+    [Fact]
+    public void Shorthand_Background_Single_Layer_Expands_To_Longhands()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        var engine = EngineWith("div { background: red no-repeat fixed left top / 50px 60px; }");
+        var style = engine.GetComputedStyle(div);
+
+        Assert.Equal("red", style.GetPropertyValue("background-color"));
+        Assert.Equal("no-repeat", style.GetPropertyValue("background-repeat"));
+        Assert.Equal("fixed", style.GetPropertyValue("background-attachment"));
+        Assert.Equal("left top", style.GetPropertyValue("background-position"));
+        Assert.Equal("50px 60px", style.GetPropertyValue("background-size"));
+    }
+
+    [Fact]
+    public void Shorthand_Background_Preserves_All_Comma_Separated_Layers()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        // Regression: the multi-layer `background` shorthand must keep every
+        // layer and emit a clean comma-joined background-image. Dropping layers
+        // or leaving a trailing comma corrupts the value the renderer's paint
+        // walker splits back into per-layer gradients
+        // (background-attachment-margin-root WPT tests).
+        var engine = EngineWith(
+            "div { background: linear-gradient(rgba(0,255,0,0.5), rgba(0,0,255,0.5)), " +
+            "linear-gradient(rgba(0,0,0,1), rgba(0,0,0,1)); }");
+        var style = engine.GetComputedStyle(div);
+        var image = style.GetPropertyValue("background-image");
+
+        // Both gradient layers survive, split cleanly on the top-level comma.
+        var layers = SplitTopLevelCommas(image);
+        Assert.Equal(2, layers.Count);
+        Assert.All(layers, layer => Assert.StartsWith("linear-gradient(", layer));
+        // No phantom "none" layer and no stray trailing comma artifact.
+        Assert.DoesNotContain("none", image);
+        Assert.False(image.TrimEnd().EndsWith(","));
+        Assert.Equal("transparent", style.GetPropertyValue("background-color"));
+    }
+
+    [Fact]
+    public void Shorthand_Background_Does_Not_Override_Explicit_Attachment_Longhand()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        // The `background` shorthand resets attachment to its initial value, but
+        // a later `background-attachment` longhand must win (matches the
+        // background-attachment-margin-root tests, where the per-layer
+        // scroll/fixed split is supplied as a longhand after the shorthand).
+        var engine = EngineWith(
+            "div { background: linear-gradient(red, blue), linear-gradient(black, black); " +
+            "background-attachment: scroll, fixed; }");
+        var style = engine.GetComputedStyle(div);
+
+        Assert.Equal("scroll, fixed", style.GetPropertyValue("background-attachment"));
     }
 
     [Fact]

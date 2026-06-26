@@ -658,93 +658,190 @@ public sealed partial class CssStyleEngine
             computed[$"border-{side}-color"] = color;
     }
 
+    // CSS Backgrounds 3 §3.10: the `background` shorthand accepts multiple
+    // comma-separated layers. Each layer carries its own image/position/size/
+    // repeat/attachment/origin/clip; only the final layer may carry the
+    // (single, non-layered) background-color. The renderer's paint walker reads
+    // these longhands back as top-level comma-separated lists (one value per
+    // layer), so the expansion MUST preserve every layer and emit clean
+    // comma-joined values — dropping layers or leaving a trailing comma
+    // corrupts background-image and silently discards layers downstream.
     private static void ExpandBackgroundShorthand(Dictionary<string, string> computed, string value)
     {
-        var tokens = SplitCssValues(value);
+        var layers = SplitOnTopLevelCommas(value);
+        if (layers.Count == 0)
+            return;
 
+        var images = new List<string>();
+        var repeats = new List<string>();
+        var attachments = new List<string>();
+        var positions = new List<string>();
+        var sizes = new List<string>();
+        var origins = new List<string>();
+        var clips = new List<string>();
         string? color = null;
-        string? image = null;
-        string? repeat = null;
-        string? attachment = null;
-        var positionParts = new List<string>();
 
-        foreach (var token in tokens)
+        for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
         {
-            var lower = token.ToLowerInvariant();
+            bool isFinalLayer = layerIndex == layers.Count - 1;
 
-            if (lower.StartsWith("url("))
+            string? image = null;
+            string? repeat = null;
+            string? attachment = null;
+            string? origin = null;
+            string? clip = null;
+            var positionParts = new List<string>();
+            var sizeParts = new List<string>();
+            bool inSizeSection = false;
+
+            foreach (var token in SplitCssValues(layers[layerIndex]))
             {
-                image ??= token;
-                continue;
+                var lower = token.ToLowerInvariant();
+
+                // '/' switches the remainder of the layer to size values.
+                if (lower == "/")
+                {
+                    inSizeSection = true;
+                    continue;
+                }
+
+                if (inSizeSection)
+                {
+                    if (lower is "auto" or "cover" or "contain" || IsLengthOrPercentage(lower))
+                    {
+                        sizeParts.Add(lower);
+                        continue;
+                    }
+                    inSizeSection = false;
+                }
+
+                if (lower.StartsWith("url(") || IsGradientFunction(lower))
+                {
+                    image ??= token;
+                    continue;
+                }
+
+                if (lower == "none")
+                {
+                    image ??= "none";
+                    continue;
+                }
+
+                if (lower is "scroll" or "fixed" or "local")
+                {
+                    attachment ??= lower;
+                    continue;
+                }
+
+                // First <box> value is background-origin, second is background-clip.
+                if (lower is "content-box" or "padding-box" or "border-box" or "border-area")
+                {
+                    if (origin == null)
+                        origin = lower;
+                    else
+                        clip ??= lower;
+                    continue;
+                }
+
+                if (lower is "repeat" or "repeat-x" or "repeat-y" or "no-repeat" or "space" or "round")
+                {
+                    repeat ??= lower;
+                    continue;
+                }
+
+                if (lower is "left" or "right" or "top" or "bottom" or "center")
+                {
+                    positionParts.Add(lower);
+                    continue;
+                }
+
+                if (IsLengthOrPercentage(lower))
+                {
+                    positionParts.Add(token);
+                    continue;
+                }
+
+                if (lower is "inherit" or "auto")
+                    continue;
+
+                // background-color is single-valued and only legal in the final layer.
+                if (isFinalLayer)
+                    color ??= token;
             }
 
-            if (lower.StartsWith("linear-gradient(") ||
-                lower.StartsWith("radial-gradient(") ||
-                lower.StartsWith("conic-gradient(") ||
-                lower.StartsWith("repeating-linear-gradient(") ||
-                lower.StartsWith("repeating-radial-gradient(") ||
-                lower.StartsWith("repeating-conic-gradient("))
-            {
-                image ??= token;
-                continue;
-            }
-
-            if (lower == "none")
-            {
-                image ??= "none";
-                continue;
-            }
-
-            if (lower is "scroll" or "fixed" or "local")
-            {
-                attachment ??= lower;
-                continue;
-            }
-
-            if (lower is "content-box" or "padding-box" or "border-box" or "border-area")
-                continue;
-
-            if (lower == "/")
-                continue;
-
-            if (lower is "repeat" or "repeat-x" or "repeat-y" or "no-repeat" or "space" or "round")
-            {
-                repeat ??= lower;
-                continue;
-            }
-
-            if (lower is "left" or "right" or "top" or "bottom" or "center")
-            {
-                positionParts.Add(lower);
-                continue;
-            }
-
-            if (IsLengthOrPercentage(lower))
-            {
-                positionParts.Add(token);
-                continue;
-            }
-
-            if (lower == "inherit")
-                continue;
-
-            if (lower is "auto" or "cover" or "contain")
-                continue;
-
-            color ??= token;
+            images.Add(image ?? "none");
+            repeats.Add(repeat ?? "repeat");
+            attachments.Add(attachment ?? "scroll");
+            positions.Add(positionParts.Count > 0 ? string.Join(" ", positionParts) : "0% 0%");
+            sizes.Add(sizeParts.Count > 0 ? string.Join(" ", sizeParts) : "auto");
+            origins.Add(origin ?? "padding-box");
+            // CSS Backgrounds 3 §3.10: a single <box> value sets both origin and clip.
+            clips.Add(clip ?? origin ?? "border-box");
         }
 
         if (!computed.ContainsKey("background-color"))
             computed["background-color"] = color ?? "transparent";
         if (!computed.ContainsKey("background-image"))
-            computed["background-image"] = image ?? "none";
+            computed["background-image"] = string.Join(", ", images);
         if (!computed.ContainsKey("background-repeat"))
-            computed["background-repeat"] = repeat ?? "repeat";
+            computed["background-repeat"] = string.Join(", ", repeats);
         if (!computed.ContainsKey("background-attachment"))
-            computed["background-attachment"] = attachment ?? "scroll";
+            computed["background-attachment"] = string.Join(", ", attachments);
         if (!computed.ContainsKey("background-position"))
-            computed["background-position"] = positionParts.Count > 0
-                ? string.Join(" ", positionParts) : "0% 0%";
+            computed["background-position"] = string.Join(", ", positions);
+        if (!computed.ContainsKey("background-size"))
+            computed["background-size"] = string.Join(", ", sizes);
+        if (!computed.ContainsKey("background-origin"))
+            computed["background-origin"] = string.Join(", ", origins);
+        if (!computed.ContainsKey("background-clip"))
+            computed["background-clip"] = string.Join(", ", clips);
+    }
+
+    private static bool IsGradientFunction(string lowerToken) =>
+        lowerToken.StartsWith("linear-gradient(") ||
+        lowerToken.StartsWith("radial-gradient(") ||
+        lowerToken.StartsWith("conic-gradient(") ||
+        lowerToken.StartsWith("repeating-linear-gradient(") ||
+        lowerToken.StartsWith("repeating-radial-gradient(") ||
+        lowerToken.StartsWith("repeating-conic-gradient(");
+
+    /// <summary>
+    /// Splits a CSS value on top-level commas (those outside any parenthesised
+    /// group), preserving commas nested inside functions such as
+    /// <c>rgba(…)</c> or <c>linear-gradient(…)</c>. Empty segments are dropped so
+    /// a stray trailing comma never yields a phantom layer.
+    /// </summary>
+    private static List<string> SplitOnTopLevelCommas(string value)
+    {
+        var parts = new List<string>();
+        if (string.IsNullOrWhiteSpace(value))
+            return parts;
+
+        var sb = new StringBuilder(value.Length);
+        int depth = 0;
+        foreach (char c in value)
+        {
+            if (c == '(') depth++;
+            else if (c == ')' && depth > 0) depth--;
+
+            if (c == ',' && depth == 0)
+            {
+                var segment = sb.ToString().Trim();
+                if (segment.Length > 0)
+                    parts.Add(segment);
+                sb.Clear();
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+
+        var last = sb.ToString().Trim();
+        if (last.Length > 0)
+            parts.Add(last);
+
+        return parts;
     }
 
     private static string[] SplitCssValues(string value)
