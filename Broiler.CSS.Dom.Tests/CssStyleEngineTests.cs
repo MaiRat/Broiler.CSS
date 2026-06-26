@@ -315,4 +315,110 @@ public sealed class CssStyleEngineTests
 
         Assert.Equal("supergrid", engine.GetComputedStyle(div).GetPropertyValue("--display"));
     }
+
+    // ---- GetCascadedStyle (renderer projection view) ----------------------
+
+    [Fact]
+    public void GetCascadedStyle_Returns_Cascaded_Value()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { color: red; }");
+
+        Assert.Equal("red", engine.GetCascadedStyle(div)["color"]);
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Does_Not_Backfill_Initials()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { color: red; }");
+        var cascaded = engine.GetCascadedStyle(div);
+
+        // Only the declared property is present; undeclared properties are absent rather
+        // than backfilled to their initial values (so the renderer keeps its own defaults).
+        Assert.True(cascaded.ContainsKey("color"));
+        Assert.False(cascaded.ContainsKey("display"));
+        Assert.False(cascaded.ContainsKey("margin-top"));
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Expands_Shorthands()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { margin: 1px 2px 3px 4px; }");
+        var cascaded = engine.GetCascadedStyle(div);
+
+        Assert.Equal("1px", cascaded["margin-top"]);
+        Assert.Equal("2px", cascaded["margin-right"]);
+        Assert.Equal("3px", cascaded["margin-bottom"]);
+        Assert.Equal("4px", cascaded["margin-left"]);
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Excludes_Inline_Style()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        div.SetAttribute("style", "color: orange;");
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { background-color: blue; }");
+        var cascaded = engine.GetCascadedStyle(div);
+
+        // Inline style is applied separately by the renderer to preserve its existing
+        // presentational-attribute ordering, so it must not appear here.
+        Assert.Equal("blue", cascaded["background-color"]);
+        Assert.False(cascaded.ContainsKey("color"));
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Folds_Inherit_To_Parent_Computed()
+    {
+        var (_, _, body) = NewDocument();
+        var parent = body.OwnerDocument.CreateElement("div");
+        parent.Id = "p";
+        var child = body.OwnerDocument.CreateElement("div");
+        child.Id = "c";
+        body.AppendChild(parent);
+        parent.AppendChild(child);
+
+        var engine = EngineWith("#p { color: green; } #c { color: inherit; }");
+        var cascaded = engine.GetCascadedStyle(child);
+
+        // `inherit` resolves to the parent's computed value (its used meaning) so the
+        // renderer projects a concrete value.
+        Assert.Equal("green", cascaded["color"]);
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Border_Shorthand_Resets_Omitted_Color_To_Initial()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        // An important `border: 1px solid` must reset border-color even though the
+        // shorthand omits it, so it overrides the earlier `border: 2px dotted red`.
+        var engine = EngineWith("#t { border: 2px dotted red; } #t { border: 1px solid !important; }");
+        var cascaded = engine.GetCascadedStyle(div);
+
+        Assert.Equal("1px", cascaded["border-top-width"]);
+        Assert.Equal("solid", cascaded["border-top-style"]);
+        // Omitted color is reset to the initial, not left as the prior red.
+        Assert.Equal("rgb(0, 0, 0)", cascaded["border-top-color"]);
+    }
 }

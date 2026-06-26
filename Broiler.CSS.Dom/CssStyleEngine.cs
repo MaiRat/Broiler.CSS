@@ -128,6 +128,137 @@ public sealed partial class CssStyleEngine
         return result;
     }
 
+    /// <summary>
+    /// Returns the cascade-resolved values for <paramref name="element"/> intended for
+    /// the HTML renderer's box projection: cascade winners from all registered
+    /// stylesheets (origin/importance/specificity/source order), with custom-property
+    /// and <c>var()</c> resolution, CSS-wide keyword handling, shorthand expansion,
+    /// <c>attr()</c> length substitution, and relative font-weight resolution — but
+    /// <em>without</em> inheritance backfill, initial-value backfill, or the
+    /// form-control/logical-size synthesis that <see cref="GetComputedStyle"/> performs.
+    /// </summary>
+    /// <remarks>
+    /// This mirrors what the legacy renderer cascade assigns from matched rules: only
+    /// explicitly-cascaded longhands, so the renderer keeps its own per-box defaults and
+    /// its own inheritance pass for everything not declared here. The <c>inherit</c>
+    /// keyword is folded to the parent element's computed value (its used meaning), since
+    /// the renderer projects concrete values rather than CSS-wide keywords. Inline
+    /// <c>style=</c> is deliberately excluded; the renderer applies it separately so its
+    /// existing presentational-attribute ordering is preserved.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> GetCascadedStyle(
+        DomElement element,
+        string? pseudoElement = null)
+    {
+        if (element is null)
+            return EmptyReadOnlyMap;
+
+        ObserveDocument(element);
+        return ComputeCascadedStyle(element, NormalizePseudoElement(pseudoElement), new HashSet<DomElement>());
+    }
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyReadOnlyMap =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    private Dictionary<string, string> ComputeCascadedStyle(
+        DomElement element,
+        string? pseudoElement,
+        HashSet<DomElement> ancestorsInProgress)
+    {
+        var computed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Parent computed style — used only to resolve relative font-weight and to fold
+        // the `inherit` keyword, never to backfill inherited properties (the renderer's
+        // own InheritStyle does that).
+        var parentElement = ParentElement(element);
+        IReadOnlyDictionary<string, string>? parentProps = null;
+        if (parentElement is not null && ancestorsInProgress.Add(parentElement))
+        {
+            try
+            {
+                parentProps = GetComputedStyleInternal(parentElement, ancestorsInProgress).AsMap();
+            }
+            finally
+            {
+                ancestorsInProgress.Remove(parentElement);
+            }
+        }
+
+        var registrations = CollectCustomPropertyRegistrations();
+
+        // 1. Cascade declarations from all registered stylesheets (no inline).
+        CollectCascadedDeclarations(element, pseudoElement, computed);
+
+        // 2. Custom properties: inheritance, registered defaults, var().
+        MergeResolvedCustomProperties(computed, element, registrations, ancestorsInProgress);
+        ResolveKnownCustomProperties(computed);
+
+        // 3. CSS-wide keywords (initial/unset/revert resolved; inherit preserved here).
+        ResolveCssWideKeywordProperties(computed, parentProps);
+
+        // 4. Shorthand expansion and attr() length substitution.
+        ExpandCssShorthands(computed);
+        ResolveLengthAttrFunctions(computed, element);
+
+        // 4b. Border shorthand reset: a `border` / `border-<side>` shorthand resets ALL of
+        // its longhands, so a component the shorthand omits (commonly the color) must be
+        // projected as its initial value rather than left absent — otherwise the renderer
+        // keeps a stale value (e.g. an important `border: 1px solid` would fail to override
+        // a prior `border: ... red` because no border-color longhand is produced).
+        ApplyBorderShorthandResets(computed);
+
+        // 5. Relative font-weight keywords need the inherited numeric weight.
+        var parentWeight = parentProps != null && parentProps.TryGetValue("font-weight", out var pw) && int.TryParse(pw, out var pwn)
+            ? pwn
+            : 400;
+        ResolveFontWeightKeywords(computed, parentWeight);
+
+        // 6. Fold any remaining `inherit` to the parent's computed (used) value so the
+        // renderer projects a concrete value. Drop it if the parent has none.
+        FoldInheritKeyword(computed, parentProps);
+
+        return computed;
+    }
+
+    private static readonly string[] BorderSides = ["top", "right", "bottom", "left"];
+    private static readonly string[] BorderComponents = ["width", "style", "color"];
+
+    private static void ApplyBorderShorthandResets(Dictionary<string, string> computed)
+    {
+        bool allSides = computed.ContainsKey("border");
+        foreach (var side in BorderSides)
+        {
+            if (!allSides && !computed.ContainsKey($"border-{side}"))
+                continue;
+
+            foreach (var component in BorderComponents)
+            {
+                var longhand = $"border-{side}-{component}";
+                if (!computed.ContainsKey(longhand) && CssInitialValues.TryGetValue(longhand, out var initial))
+                    computed[longhand] = initial;
+            }
+        }
+    }
+
+    private static void FoldInheritKeyword(
+        Dictionary<string, string> computed,
+        IReadOnlyDictionary<string, string>? parentProps)
+    {
+        foreach (var key in computed.Keys.ToList())
+        {
+            if (key.StartsWith("--", StringComparison.Ordinal))
+                continue;
+            if (!computed.TryGetValue(key, out var value) ||
+                !string.Equals(value?.Trim(), "inherit", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (parentProps != null && parentProps.TryGetValue(key, out var inherited) && !string.IsNullOrWhiteSpace(inherited))
+                computed[key] = inherited;
+            else
+                computed.Remove(key);
+        }
+    }
+
     private CssComputedStyle GetComputedStyleInternal(DomElement element, HashSet<DomElement> ancestorsInProgress)
     {
         var key = ((DomElement, string?))(element, null);
