@@ -512,4 +512,29 @@ public sealed class CssStyleEngineTests
         // Omitted color is reset to the initial, not left as the prior red.
         Assert.Equal("rgb(0, 0, 0)", cascaded["border-top-color"]);
     }
+
+    [Fact]
+    public void CssEngineDiagnostics_Reports_Dropped_Declarations_Only()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        // position:wobble is rejected (unknown keyword); color:red is accepted.
+        div.SetAttribute("style", "position: wobble; color: red");
+        body.AppendChild(div);
+
+        var engine = EngineWith("");
+        var rejected = new List<(string Property, string Value)>();
+        CssEngineDiagnostics.DeclarationRejected = (p, v) => rejected.Add((p, v));
+        try
+        {
+            engine.GetComputedStyle(div);
+        }
+        finally
+        {
+            CssEngineDiagnostics.DeclarationRejected = null;
+        }
+
+        Assert.Contains(("position", "wobble"), rejected);
+        Assert.DoesNotContain(rejected, e => e.Property == "color");
+    }
 }

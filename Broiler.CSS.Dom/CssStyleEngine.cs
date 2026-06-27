@@ -309,6 +309,8 @@ public sealed partial class CssStyleEngine
                 {
                     if (IsAcceptableDeclarationValue(name, value))
                         computed[name] = value;
+                    else
+                        CssEngineDiagnostics.ReportRejected(name, value);
                 }
             }
         }
@@ -428,7 +430,10 @@ public sealed partial class CssStyleEngine
             // CSS error recovery: drop invalid declarations so a previously
             // cascaded valid value wins rather than the invalid last-parsed one.
             if (!IsAcceptableDeclarationValue(declaration.Name, declaration.Value.Text))
+            {
+                CssEngineDiagnostics.ReportRejected(declaration.Name, declaration.Value.Text);
                 continue;
+            }
 
             var currentOrder = order++;
             AddDeclaration(winners, declaration.Name, declaration.Value.Text, declaration.Important, origin, bestSpecificity, currentOrder);
