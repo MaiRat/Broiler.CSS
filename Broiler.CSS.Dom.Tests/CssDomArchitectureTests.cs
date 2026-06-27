@@ -73,8 +73,15 @@ public sealed class CssDomArchitectureTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            var path = Path.Combine(directory.FullName, "src", "Broiler.CSS.Dom", "Broiler.CSS.Dom.csproj");
-            if (File.Exists(path))
+            string[] candidates =
+            [
+                Path.Combine(directory.FullName, "Broiler.CSS.Dom", "Broiler.CSS.Dom.csproj"),
+                Path.Combine(directory.FullName, "Broiler.CSS", "Broiler.CSS.Dom", "Broiler.CSS.Dom.csproj"),
+                Path.Combine(directory.FullName, "src", "Broiler.CSS.Dom", "Broiler.CSS.Dom.csproj"),
+            ];
+
+            var path = candidates.FirstOrDefault(File.Exists);
+            if (path is not null)
                 return path;
             directory = directory.Parent;
         }

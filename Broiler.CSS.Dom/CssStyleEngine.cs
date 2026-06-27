@@ -79,6 +79,13 @@ public sealed partial class CssStyleEngine
         _matcher.Matches(element, selector, scope);
 
     /// <summary>
+    /// Evaluates a media-query list against the supplied CSS environment using the
+    /// same evaluator that filters stylesheet rules in this engine.
+    /// </summary>
+    public static bool MatchesMediaQuery(string query, CssEnvironment environment) =>
+        EvaluateMediaQuery(query, environment.ViewportWidth, environment.ViewportHeight);
+
+    /// <summary>
     /// Computes the immutable computed style for <paramref name="element"/>,
     /// optionally for a <paramref name="pseudoElement"/> such as
     /// <c>"::before"</c>. Results are cached until a relevant DOM mutation or a

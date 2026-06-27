@@ -4,6 +4,23 @@ namespace Broiler.CSS.Dom.Tests;
 
 public sealed class CssStyleEngineTests
 {
+    [Theory]
+    [InlineData("screen and (min-width: 600px)", 800, 600, true)]
+    [InlineData("screen and (max-width: 600px)", 800, 600, false)]
+    [InlineData("not screen and (min-height: 700px)", 800, 600, true)]
+    public void MatchesMediaQuery_Uses_Engine_Environment(
+        string query,
+        int viewportWidth,
+        int viewportHeight,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CssStyleEngine.MatchesMediaQuery(
+                query,
+                new CssEnvironment(viewportWidth, viewportHeight)));
+    }
+
     private static CssStyleEngine EngineWith(string css, ICssSelectorStateProvider? state = null)
     {
         var engine = new CssStyleEngine(state);

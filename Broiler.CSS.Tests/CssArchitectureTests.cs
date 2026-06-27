@@ -71,8 +71,15 @@ public sealed class CssArchitectureTests
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            var project = Path.Combine(directory.FullName, "src", "Broiler.CSS", "Broiler.CSS.csproj");
-            if (File.Exists(project))
+            string[] candidates =
+            [
+                Path.Combine(directory.FullName, "Broiler.CSS", "Broiler.CSS.csproj"),
+                Path.Combine(directory.FullName, "Broiler.CSS", "Broiler.CSS", "Broiler.CSS.csproj"),
+                Path.Combine(directory.FullName, "src", "Broiler.CSS", "Broiler.CSS.csproj"),
+            ];
+
+            var project = candidates.FirstOrDefault(File.Exists);
+            if (project is not null)
                 return project;
             directory = directory.Parent;
         }
