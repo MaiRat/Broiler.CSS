@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace Broiler.CSS;
 
@@ -20,17 +23,11 @@ public readonly record struct CssSpecificity(int Ids, int Classes, int Types)
         new(left.Ids + right.Ids, left.Classes + right.Classes, left.Types + right.Types);
 }
 
-public sealed class CssSelector
+public sealed class CssSelector(string text, CssSpecificity specificity)
 {
-    internal CssSelector(string text, CssSpecificity specificity)
-    {
-        Text = text;
-        Specificity = specificity;
-    }
+    public string Text { get; } = text;
 
-    public string Text { get; }
-
-    public CssSpecificity Specificity { get; }
+    public CssSpecificity Specificity { get; } = specificity;
 
     public override string ToString() => Text;
 }

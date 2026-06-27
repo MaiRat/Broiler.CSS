@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 
 namespace Broiler.CSS.Dom;
@@ -14,7 +17,7 @@ public sealed partial class CssStyleEngine
 
     // ---- CSS-wide keywords -------------------------------------------------
 
-    private void ResolveCssWideKeywordProperties(
+    private static void ResolveCssWideKeywordProperties(
         Dictionary<string, string> computed,
         IReadOnlyDictionary<string, string>? parentProps)
     {
@@ -224,7 +227,7 @@ public sealed partial class CssStyleEngine
 
         // Custom-property references are validated after substitution, not during
         // raw cascade, so keep them for the later var() resolution step.
-        if (v.IndexOf("var(", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (v.Contains("var(", StringComparison.OrdinalIgnoreCase))
             return true;
 
         switch (property.ToLowerInvariant())
@@ -877,7 +880,7 @@ public sealed partial class CssStyleEngine
             }
         }
         if (sb.Length > 0) parts.Add(sb.ToString());
-        return parts.ToArray();
+        return [.. parts];
     }
 
     // ---- Relative font-weight ---------------------------------------------
@@ -1133,7 +1136,7 @@ public sealed partial class CssStyleEngine
         v = v.Trim();
         if (v == "0")
             return true;
-        if (v.EndsWith("%", StringComparison.Ordinal))
+        if (v.EndsWith('%'))
             return double.TryParse(v[..^1], NumberStyles.Float, CultureInfo.InvariantCulture, out _);
         return !double.IsNaN(ParseCssLengthToPixels(v));
     }

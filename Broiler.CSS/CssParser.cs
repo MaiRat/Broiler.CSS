@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Broiler.CSS;
 
 public sealed class CssParser
@@ -18,8 +22,8 @@ public sealed class CssParser
         return ParseDeclarationBlock(source ?? string.Empty, 0);
     }
 
-    public CssSelectorList ParseSelectors(string? source) =>
-        CssSelectorParser.Parse(source);
+    // MaiRat: currently zero references
+    public static CssSelectorList ParseSelectors(string? source) => CssSelectorParser.Parse(source);
 
     private List<CssRule> ParseRules(string text, int sourceOffset)
     {
@@ -38,8 +42,8 @@ public sealed class CssParser
                 continue;
             }
 
-            var brace = FindTopLevelDelimiter(text, position, '{', ';');
-            if (brace.Index < 0 || brace.Character != '{')
+            var (Index, Character) = FindTopLevelDelimiter(text, position, '{', ';');
+            if (Index < 0 || Character != '{')
             {
                 AddDiagnostic(
                     "CSS1001",
@@ -50,8 +54,8 @@ public sealed class CssParser
                 break;
             }
 
-            var selectorText = CssSyntax.RemoveComments(text[position..brace.Index]).Trim();
-            var close = FindClosingBrace(text, brace.Index);
+            var selectorText = CssSyntax.RemoveComments(text[position..Index]).Trim();
+            var close = FindClosingBrace(text, Index);
             if (close < 0)
             {
                 AddDiagnostic(
@@ -63,7 +67,7 @@ public sealed class CssParser
                 close = text.Length - 1;
             }
 
-            var blockStart = brace.Index + 1;
+            var blockStart = Index + 1;
             var blockLength = Math.Max(0, close - blockStart);
             var declarations = ParseDeclarationBlock(text.Substring(blockStart, blockLength), sourceOffset + blockStart);
             rules.Add(new CssStyleRule(
@@ -79,8 +83,7 @@ public sealed class CssParser
     {
         var start = position++;
         var nameStart = position;
-        while (position < text.Length &&
-               (char.IsLetterOrDigit(text[position]) || text[position] is '-' or '_'))
+        while (position < text.Length && (char.IsLetterOrDigit(text[position]) || text[position] is '-' or '_'))
         {
             position++;
         }
@@ -204,10 +207,7 @@ public sealed class CssParser
         return new CssDeclarationBlock(declarations);
     }
 
-    private static (int Index, char Character) FindTopLevelDelimiter(
-        string text,
-        int start,
-        params char[] delimiters)
+    private static (int Index, char Character) FindTopLevelDelimiter(string text, int start, params char[] delimiters)
     {
         var parentheses = 0;
         var brackets = 0;
@@ -300,15 +300,6 @@ public sealed class CssParser
         }
     }
 
-    private void AddDiagnostic(
-        string code,
-        string message,
-        CssDiagnosticSeverity severity,
-        int start,
-        int length) =>
-        _diagnostics.Add(new CssDiagnostic(
-            code,
-            message,
-            severity,
-            new CssSourceRange(start, Math.Max(0, length))));
+    private void AddDiagnostic(string code, string message, CssDiagnosticSeverity severity, int start, int length) =>
+        _diagnostics.Add(new CssDiagnostic(code, message, severity, new CssSourceRange(start, Math.Max(0, length))));
 }

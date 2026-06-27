@@ -5,12 +5,10 @@ using Broiler.Dom;
 
 namespace Broiler.CSS.Dom;
 
-public sealed class CssSelectorMatcher
+public sealed partial class CssSelectorMatcher
 {
     private static readonly char[] AsciiWhitespace = [' ', '\t', '\n', '\r', '\f'];
-    private static readonly Regex AttributePattern = new(
-        @"\[\s*(?<name>[^\s~|^$*=\]]+)\s*(?:(?<op>[~|^$*]?=)\s*(?<value>(?:'[^']*'|""[^""]*""|[^\]\s]+)))?\s*\]",
-        RegexOptions.Compiled);
+    private static readonly Regex AttributePattern = AttributeRegex();
     private readonly ICssSelectorStateProvider? _stateProvider;
 
     public CssSelectorMatcher(ICssSelectorStateProvider? stateProvider = null) =>
@@ -34,11 +32,7 @@ public sealed class CssSelectorMatcher
         return parts.Count == 1 || MatchBackwards(parts, parts.Count - 2, element, scope);
     }
 
-    private bool MatchBackwards(
-        IReadOnlyList<SelectorPart> parts,
-        int index,
-        DomElement current,
-        DomElement? scope)
+    private bool MatchBackwards(IReadOnlyList<SelectorPart> parts, int index, DomElement current, DomElement? scope)
     {
         if (index < 0)
             return true;
@@ -215,11 +209,7 @@ public sealed class CssSelectorMatcher
         return false;
     }
 
-    private bool MatchRelative(
-        IReadOnlyList<SelectorPart> parts,
-        int index,
-        DomElement current,
-        DomElement scope)
+    private bool MatchRelative(IReadOnlyList<SelectorPart> parts, int index, DomElement current, DomElement scope)
     {
         if (index >= parts.Count)
             return true;
@@ -347,13 +337,10 @@ public sealed class CssSelectorMatcher
     }
 
     private static bool IsEmpty(DomElement element) =>
-        element.ChildNodes.All(child =>
-            child is DomComment ||
-            child is DomText text && text.Data.Length == 0);
+        element.ChildNodes.All(child => child is DomComment || child is DomText text && text.Data.Length == 0);
 
     private static bool IsRoot(DomElement element) =>
-        element.ParentNode is DomDocument ||
-        element.ParentNode is DomElement parent && parent.LocalName.StartsWith('#');
+        element.ParentNode is DomDocument || element.ParentNode is DomElement parent && parent.LocalName.StartsWith('#');
 
     private static List<SelectorPart> SplitParts(string selector)
     {
@@ -548,22 +535,19 @@ public sealed class CssSelectorMatcher
             : (index - b) % a == 0 && (index - b) / a >= 0;
     }
 
-    private static List<DomElement> ElementSiblings(DomElement element) =>
-        element.ParentNode?.ChildNodes.OfType<DomElement>().ToList() ?? [];
-    private static List<DomElement> TypeSiblings(DomElement element) =>
-        ElementSiblings(element)
-            .Where(candidate => AsciiEquals(candidate.LocalName, element.LocalName))
-            .ToList();
-    private static int ElementIndex(DomElement element) =>
-        ElementSiblings(element).FindIndex(candidate => ReferenceEquals(candidate, element)) + 1;
+    private static List<DomElement> ElementSiblings(DomElement element) => element.ParentNode?.ChildNodes.OfType<DomElement>().ToList() ?? [];
+    private static List<DomElement> TypeSiblings(DomElement element) => [.. ElementSiblings(element).Where(candidate => AsciiEquals(candidate.LocalName, element.LocalName))];
+    private static int ElementIndex(DomElement element) => ElementSiblings(element).FindIndex(candidate => ReferenceEquals(candidate, element)) + 1;
+    
     private static int ElementIndexFromEnd(DomElement element)
     {
         var siblings = ElementSiblings(element);
         var index = siblings.FindIndex(candidate => ReferenceEquals(candidate, element));
         return index < 0 ? 0 : siblings.Count - index;
     }
-    private static int TypeIndex(DomElement element) =>
-        TypeSiblings(element).FindIndex(candidate => ReferenceEquals(candidate, element)) + 1;
+    
+    private static int TypeIndex(DomElement element) => TypeSiblings(element).FindIndex(candidate => ReferenceEquals(candidate, element)) + 1;
+    
     private static int TypeIndexFromEnd(DomElement element)
     {
         var siblings = TypeSiblings(element);
@@ -573,18 +557,21 @@ public sealed class CssSelectorMatcher
 
     private static DomElement? Parent(DomElement element) => element.ParentNode as DomElement;
     private static IEnumerable<DomElement> Children(DomElement element) => element.ChildNodes.OfType<DomElement>();
+    
     private static DomElement? PreviousElementSibling(DomElement element)
     {
         for (var node = element.PreviousSibling; node is not null; node = node.PreviousSibling)
             if (node is DomElement sibling) return sibling;
         return null;
     }
+    
     private static DomElement? NextElementSibling(DomElement element)
     {
         for (var node = element.NextSibling; node is not null; node = node.NextSibling)
             if (node is DomElement sibling) return sibling;
         return null;
     }
+    
     private static IEnumerable<DomElement> FollowingElementSiblings(DomElement element)
     {
         for (var sibling = NextElementSibling(element);
@@ -600,6 +587,7 @@ public sealed class CssSelectorMatcher
         index = ConsumeName(source, index);
         return source[start..index];
     }
+    
     private static int ConsumeName(string source, int index)
     {
         while (index < source.Length)
@@ -610,6 +598,7 @@ public sealed class CssSelectorMatcher
         }
         return index;
     }
+    
     private static int ConsumeEscape(string source, int index)
     {
         index++;
@@ -623,6 +612,7 @@ public sealed class CssSelectorMatcher
         else if (digits == 0 && index < source.Length) index++;
         return index;
     }
+    
     private static string Unescape(string value)
     {
         var result = new StringBuilder(value.Length);
@@ -652,6 +642,7 @@ public sealed class CssSelectorMatcher
         }
         return result.ToString();
     }
+    
     private static int FindMatching(string source, int open, char left, char right)
     {
         var depth = 0;
@@ -671,11 +662,13 @@ public sealed class CssSelectorMatcher
         }
         return -1;
     }
+    
     private static string StripPseudoElement(string source)
     {
         var index = source.IndexOf("::", StringComparison.Ordinal);
         return index >= 0 ? source[..index] : source;
     }
+    
     private static string NormalizeImpliedDescendantStar(string selector)
     {
         var result = new StringBuilder(selector.Length + 4);
@@ -701,22 +694,17 @@ public sealed class CssSelectorMatcher
         }
         return result.ToString();
     }
-    private static bool IsNameStart(char character) =>
-        char.IsLetter(character) || character is '_' or '-' || character >= 0x80;
-    private static bool IsNameCharacter(char character) =>
-        IsNameStart(character) || char.IsDigit(character);
-    private static bool AsciiEquals(string left, string right) =>
-        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-    private static bool IsNamed(DomElement element, params string[] names) =>
-        names.Any(name => AsciiEquals(element.LocalName, name));
-    private static bool IsFormControl(DomElement element) =>
-        IsNamed(element, "input", "button", "select", "textarea");
-    private static bool IsCheckable(DomElement element) =>
-        IsNamed(element, "input") &&
-        element.GetAttribute("type") is { } type &&
-        (AsciiEquals(type, "checkbox") || AsciiEquals(type, "radio"));
+    private static bool IsNameStart(char character) => char.IsLetter(character) || character is '_' or '-' || character >= 0x80;
+    private static bool IsNameCharacter(char character) => IsNameStart(character) || char.IsDigit(character);
+    private static bool AsciiEquals(string left, string right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    private static bool IsNamed(DomElement element, params string[] names) => names.Any(name => AsciiEquals(element.LocalName, name));
+    private static bool IsFormControl(DomElement element) => IsNamed(element, "input", "button", "select", "textarea");
+    private static bool IsCheckable(DomElement element) => IsNamed(element, "input") && element.GetAttribute("type") is { } type && (AsciiEquals(type, "checkbox") || AsciiEquals(type, "radio"));
 
     private readonly record struct SelectorPart(char Combinator, string Compound);
     private readonly record struct AttributeFilter(string Name, string? Operator, string? Value);
     private readonly record struct Pseudo(string Name, string? Argument, int Start, int Length);
+
+    [GeneratedRegex(@"\[\s*(?<name>[^\s~|^$*=\]]+)\s*(?:(?<op>[~|^$*]?=)\s*(?<value>(?:'[^']*'|""[^""]*""|[^\]\s]+)))?\s*\]", RegexOptions.Compiled)]
+    private static partial Regex AttributeRegex();
 }

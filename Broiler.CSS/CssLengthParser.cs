@@ -26,7 +26,7 @@ public static class CssLengthParser
     /// evaluate to zero.
     /// </summary>
     [ThreadStatic]
-    private static SizeF _viewportSize;
+    private static SizeF _viewportSize; // MaiRat: currently dead code
 
     /// <summary>Pre-computed factor for 1vh (viewport height / 100).</summary>
     [ThreadStatic]
@@ -98,16 +98,8 @@ public static class CssLengthParser
     public static bool IsValidLength(string value)
     {
         var defaultRootLineHeight = CssConstants.FontSize * (96.0 / 72.0) * 1.2;
-        if (TryEvaluateLengthExpression(
-                value,
-                100f,
-                16f,
-                null,
-                fontAdjust: false,
-                returnPoints: false,
-                lineHeightFactor: 16f * 1.2,
-                rootLineHeightFactor: defaultRootLineHeight,
-                out _))
+        if (TryEvaluateLengthExpression(value, 100f, 16f, null, fontAdjust: false, returnPoints: false,
+            lineHeightFactor: 16f * 1.2, rootLineHeightFactor: defaultRootLineHeight, out _))
         {
             return true;
         }
@@ -196,9 +188,14 @@ public static class CssLengthParser
         return result;
     }
 
-    public static double ParseLength(string length, double hundredPercent, double emFactor, bool fontAdjust = false) => ParseLength(length, hundredPercent, emFactor, null, fontAdjust, false);
-    public static double ParseLength(string length, double hundredPercent, double emFactor, string defaultUnit) => ParseLength(length, hundredPercent, emFactor, defaultUnit, false, false);
-    public static double ParseLength(string length, double hundredPercent, double emFactor, string defaultUnit, bool fontAdjust, bool returnPoints, double? lineHeightFactor = null, double? rootLineHeightFactor = null)
+    public static double ParseLength(string length, double hundredPercent, double emFactor, bool fontAdjust = false) =>
+        ParseLength(length, hundredPercent, emFactor, null, fontAdjust, false);
+
+    public static double ParseLength(string length, double hundredPercent, double emFactor, string defaultUnit) =>
+        ParseLength(length, hundredPercent, emFactor, defaultUnit, false, false);
+
+    public static double ParseLength(string length, double hundredPercent, double emFactor, string defaultUnit,
+        bool fontAdjust, bool returnPoints, double? lineHeightFactor = null, double? rootLineHeightFactor = null)
     {
         //Return zero if no length specified, zero specified
         if (string.IsNullOrEmpty(length) || length == "0")
@@ -208,16 +205,8 @@ public static class CssLengthParser
         var computedRootLineHeightFactor = rootLineHeightFactor
             ?? (CssConstants.FontSize * (96.0 / 72.0) * 1.2);
 
-        if (TryEvaluateLengthExpression(
-                length,
-                hundredPercent,
-                emFactor,
-                defaultUnit,
-                fontAdjust,
-                returnPoints,
-                computedLineHeightFactor,
-                computedRootLineHeightFactor,
-                out var evaluated))
+        if (TryEvaluateLengthExpression(length, hundredPercent, emFactor, defaultUnit, fontAdjust, returnPoints,
+            computedLineHeightFactor, computedRootLineHeightFactor, out var evaluated))
         {
             return evaluated;
         }
@@ -241,7 +230,6 @@ public static class CssLengthParser
             ? length[..^unitLen]
             : length;
 
-        //TODO: Units behave different in paper and in screen!
         switch (unit)
         {
             case CssConstants.Em:
@@ -320,27 +308,13 @@ public static class CssLengthParser
         return factor * ParseNumber(number, hundredPercent);
     }
 
-    private static bool TryEvaluateLengthExpression(
-        string expression,
-        double hundredPercent,
-        double emFactor,
-        string defaultUnit,
-        bool fontAdjust,
-        bool returnPoints,
-        double lineHeightFactor,
-        double rootLineHeightFactor,
-        out double result)
+    private static bool TryEvaluateLengthExpression(string expression, double hundredPercent, double emFactor,
+        string defaultUnit, bool fontAdjust, bool returnPoints, double lineHeightFactor,
+        double rootLineHeightFactor, out double result)
     {
-        if (TryEvaluateLengthExpressionCore(
-                expression,
-                hundredPercent,
-                emFactor,
-                defaultUnit,
-                fontAdjust,
-                returnPoints,
-                lineHeightFactor,
-                rootLineHeightFactor,
-                insideMathFunction: false,
+        if (TryEvaluateLengthExpressionCore(expression, hundredPercent, emFactor,
+                defaultUnit, fontAdjust, returnPoints, lineHeightFactor,
+                rootLineHeightFactor, insideMathFunction: false,
                 out var evaluation))
         {
             result = evaluation.Pixels;
@@ -351,16 +325,9 @@ public static class CssLengthParser
         return false;
     }
 
-    private static bool TryEvaluateLengthExpressionCore(
-        string expression,
-        double hundredPercent,
-        double emFactor,
-        string defaultUnit,
-        bool fontAdjust,
-        bool returnPoints,
-        double lineHeightFactor,
-        double rootLineHeightFactor,
-        bool insideMathFunction,
+    private static bool TryEvaluateLengthExpressionCore(string expression,
+        double hundredPercent, double emFactor, string defaultUnit, bool fontAdjust,
+        bool returnPoints, double lineHeightFactor, double rootLineHeightFactor, bool insideMathFunction,
         out LengthEvaluation evaluation)
     {
         evaluation = default;
@@ -371,16 +338,11 @@ public static class CssLengthParser
         while (current.Length >= 2 && current[0] == '(' && current[^1] == ')' && HasBalancedParens(current[1..^1]))
             current = current[1..^1].Trim();
 
-        if (TryEvaluateMathFunction(
-                current,
-                hundredPercent,
-                emFactor,
-                defaultUnit,
-                fontAdjust,
-                returnPoints,
-                lineHeightFactor,
-                rootLineHeightFactor,
-                out evaluation))
+        if (TryEvaluateMathFunction(current,
+                hundredPercent, emFactor,
+                defaultUnit, fontAdjust,
+                returnPoints, lineHeightFactor,
+                rootLineHeightFactor, out evaluation))
         {
             return true;
         }
@@ -388,16 +350,11 @@ public static class CssLengthParser
         var additiveOperatorIndex = FindTopLevelAdditiveOperator(current);
         if (additiveOperatorIndex > 0)
         {
-            if (!TryEvaluateLengthExpressionCore(
-                    current[..additiveOperatorIndex],
-                    hundredPercent,
-                    emFactor,
-                    defaultUnit,
-                    fontAdjust,
-                    returnPoints,
-                    lineHeightFactor,
-                    rootLineHeightFactor,
-                    insideMathFunction: true,
+            if (!TryEvaluateLengthExpressionCore(current[..additiveOperatorIndex],
+                    hundredPercent, emFactor,
+                    defaultUnit, fontAdjust,
+                    returnPoints, lineHeightFactor,
+                    rootLineHeightFactor, insideMathFunction: true,
                     out var left))
             {
                 return false;
@@ -426,16 +383,11 @@ public static class CssLengthParser
             return true;
         }
 
-        return TryParseSimpleLength(
-            current,
-            hundredPercent,
-            emFactor,
-            defaultUnit,
-            fontAdjust,
-            returnPoints,
-            lineHeightFactor,
-            rootLineHeightFactor,
-            insideMathFunction,
+        return TryParseSimpleLength(current,
+            hundredPercent, emFactor,
+            defaultUnit, fontAdjust,
+            returnPoints, lineHeightFactor,
+            rootLineHeightFactor, insideMathFunction,
             out evaluation);
     }
 
@@ -588,11 +540,9 @@ public static class CssLengthParser
         if (double.IsNaN(factor))
             return false;
 
-        evaluation = new LengthEvaluation(
-            unit == CssConstants.Pt && returnPoints
-                ? ParseNumber(number, hundredPercent)
-                : factor * parsedNumber,
-            IsUnitless: false);
+        evaluation = new LengthEvaluation(unit == CssConstants.Pt && returnPoints
+                ? ParseNumber(number, hundredPercent) 
+                : factor * parsedNumber, IsUnitless: false);
         return true;
     }
 

@@ -85,7 +85,6 @@ public sealed class CssLength
         //Number of the length
         string number = length[..^2];
 
-        //TODO: Units behave different in paper and in screen!
         switch (u)
         {
             case CssConstants.Em:

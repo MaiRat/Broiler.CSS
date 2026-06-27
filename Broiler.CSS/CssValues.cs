@@ -63,27 +63,15 @@ public readonly record struct CssColor(byte Red, byte Green, byte Blue, byte Alp
                 $"rgba({Red}, {Green}, {Blue}, {Alpha / 255d:0.###})");
 }
 
-public sealed class CssValue
+public sealed class CssValue(string text, CssValueKind kind, CssNumericValue? numeric = null, CssColor? color = null)
 {
-    internal CssValue(
-        string text,
-        CssValueKind kind,
-        CssNumericValue? numeric = null,
-        CssColor? color = null)
-    {
-        Text = text;
-        Kind = kind;
-        Numeric = numeric;
-        Color = color;
-    }
+    public string Text { get; } = text;
 
-    public string Text { get; }
+    public CssValueKind Kind { get; } = kind;
 
-    public CssValueKind Kind { get; }
+    public CssNumericValue? Numeric { get; } = numeric;
 
-    public CssNumericValue? Numeric { get; }
-
-    public CssColor? Color { get; }
+    public CssColor? Color { get; } = color;
 
     public override string ToString() => Text;
 }

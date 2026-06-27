@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace Broiler.CSS;
 
@@ -8,63 +10,33 @@ public enum CssRuleKind
     AtRule,
 }
 
-public abstract class CssRule
+public abstract class CssRule(CssRuleKind kind, CssSourceRange range)
 {
-    protected CssRule(CssRuleKind kind, CssSourceRange range)
-    {
-        Kind = kind;
-        Range = range;
-    }
+    public CssRuleKind Kind { get; } = kind;
 
-    public CssRuleKind Kind { get; }
-
-    public CssSourceRange Range { get; }
+    public CssSourceRange Range { get; } = range;
 }
 
-public sealed class CssStyleRule : CssRule
+public sealed class CssStyleRule(CssSelectorList selectors, CssDeclarationBlock declarations, CssSourceRange range) :
+    CssRule(CssRuleKind.Style, range)
 {
-    internal CssStyleRule(
-        CssSelectorList selectors,
-        CssDeclarationBlock declarations,
-        CssSourceRange range)
-        : base(CssRuleKind.Style, range)
-    {
-        Selectors = selectors;
-        Declarations = declarations;
-    }
+    public CssSelectorList Selectors { get; } = selectors;
 
-    public CssSelectorList Selectors { get; }
-
-    public CssDeclarationBlock Declarations { get; }
+    public CssDeclarationBlock Declarations { get; } = declarations;
 }
 
-public sealed class CssAtRule : CssRule
+public sealed class CssAtRule(string name, string prelude, string? blockText, CssDeclarationBlock? declarations,
+    IEnumerable<CssRule>? rules, CssSourceRange range) : CssRule(CssRuleKind.AtRule, range)
 {
-    private readonly ReadOnlyCollection<CssRule> _rules;
+    private readonly ReadOnlyCollection<CssRule> _rules = (rules ?? []).ToList().AsReadOnly();
 
-    internal CssAtRule(
-        string name,
-        string prelude,
-        string? blockText,
-        CssDeclarationBlock? declarations,
-        IEnumerable<CssRule>? rules,
-        CssSourceRange range)
-        : base(CssRuleKind.AtRule, range)
-    {
-        Name = name;
-        Prelude = prelude;
-        BlockText = blockText;
-        Declarations = declarations;
-        _rules = (rules ?? []).ToList().AsReadOnly();
-    }
+    public string Name { get; } = name;
 
-    public string Name { get; }
+    public string Prelude { get; } = prelude;
 
-    public string Prelude { get; }
+    public string? BlockText { get; } = blockText;
 
-    public string? BlockText { get; }
-
-    public CssDeclarationBlock? Declarations { get; }
+    public CssDeclarationBlock? Declarations { get; } = declarations;
 
     public IReadOnlyList<CssRule> Rules => _rules;
 

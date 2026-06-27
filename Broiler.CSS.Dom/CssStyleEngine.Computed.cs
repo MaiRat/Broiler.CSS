@@ -19,9 +19,7 @@ public sealed partial class CssStyleEngine
 
     private Dictionary<string, CustomPropertyRegistration>? _registrations;
 
-    private static readonly Regex LengthAttrFunctionPattern = new(
-        @"attr\(\s*(?<name>[A-Za-z_][A-Za-z0-9_-]*)\s+type\(\s*<length>\s*\)\s*(?:,\s*(?<fallback>[^)]+?))?\s*\)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex LengthAttrFunctionPattern = LengthAttrRegex();
 
     // ---- @property registrations ------------------------------------------
 
@@ -38,9 +36,7 @@ public sealed partial class CssStyleEngine
         return registrations;
     }
 
-    private static void CollectPropertyRules(
-        IReadOnlyList<CssRule> rules,
-        Dictionary<string, CustomPropertyRegistration> registrations)
+    private static void CollectPropertyRules(IReadOnlyList<CssRule> rules, Dictionary<string, CustomPropertyRegistration> registrations)
     {
         foreach (var rule in rules)
         {
@@ -70,11 +66,8 @@ public sealed partial class CssStyleEngine
 
     // ---- Custom-property resolution ---------------------------------------
 
-    private void MergeResolvedCustomProperties(
-        Dictionary<string, string> computed,
-        DomElement element,
-        Dictionary<string, CustomPropertyRegistration> registrations,
-        HashSet<DomElement> ancestorsInProgress)
+    private void MergeResolvedCustomProperties(Dictionary<string, string> computed, DomElement element,
+        Dictionary<string, CustomPropertyRegistration> registrations, HashSet<DomElement> ancestorsInProgress)
     {
         var explicitCustomProperties = computed
             .Where(kv => kv.Key.StartsWith("--", StringComparison.Ordinal))
@@ -98,9 +91,7 @@ public sealed partial class CssStyleEngine
             computed[kv.Key] = kv.Value;
     }
 
-    private Dictionary<string, string> BuildResolvedCustomPropertyMap(
-        DomElement element,
-        Dictionary<string, CustomPropertyRegistration> registrations)
+    private Dictionary<string, string> BuildResolvedCustomPropertyMap(DomElement element, Dictionary<string, CustomPropertyRegistration> registrations)
     {
         var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string>? parentResolved = null;
@@ -141,10 +132,8 @@ public sealed partial class CssStyleEngine
         return local.Select(kv => (kv.Key, kv.Value));
     }
 
-    private static void FinalizeResolvedCustomProperties(
-        Dictionary<string, string> resolved,
-        Dictionary<string, string>? parentResolved,
-        Dictionary<string, CustomPropertyRegistration> registrations)
+    private static void FinalizeResolvedCustomProperties(Dictionary<string, string> resolved,
+        Dictionary<string, string>? parentResolved, Dictionary<string, CustomPropertyRegistration> registrations)
     {
         for (var pass = 0; pass < MaxCustomPropertyResolutionPasses; pass++)
         {
@@ -172,10 +161,8 @@ public sealed partial class CssStyleEngine
         }
     }
 
-    private static bool ApplyRegisteredCustomPropertyDefaults(
-        Dictionary<string, string> resolved,
-        Dictionary<string, string>? parentResolved,
-        Dictionary<string, CustomPropertyRegistration> registrations)
+    private static bool ApplyRegisteredCustomPropertyDefaults(Dictionary<string, string> resolved,
+        Dictionary<string, string>? parentResolved, Dictionary<string, CustomPropertyRegistration> registrations)
     {
         var changed = false;
         foreach (var (propertyName, registration) in registrations)
@@ -200,10 +187,8 @@ public sealed partial class CssStyleEngine
         return changed;
     }
 
-    private static bool ResolveCssWideKeywordCustomProperties(
-        Dictionary<string, string> resolved,
-        Dictionary<string, string>? parentResolved,
-        Dictionary<string, CustomPropertyRegistration> registrations)
+    private static bool ResolveCssWideKeywordCustomProperties(Dictionary<string, string> resolved, 
+        Dictionary<string, string>? parentResolved, Dictionary<string, CustomPropertyRegistration> registrations)
     {
         var changed = false;
         foreach (var key in resolved.Keys.Where(k => k.StartsWith("--", StringComparison.Ordinal)).ToList())
@@ -610,4 +595,7 @@ public sealed partial class CssStyleEngine
         "word-spacing",
         "writing-mode",
     };
+
+    [GeneratedRegex(@"attr\(\s*(?<name>[A-Za-z_][A-Za-z0-9_-]*)\s+type\(\s*<length>\s*\)\s*(?:,\s*(?<fallback>[^)]+?))?\s*\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "de-DE")]
+    private static partial Regex LengthAttrRegex();
 }

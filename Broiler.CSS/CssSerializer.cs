@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Text;
 
 namespace Broiler.CSS;
@@ -84,10 +86,7 @@ public static class CssSerializer
         }
     }
 
-    private static void WriteDeclarations(
-        StringBuilder builder,
-        CssDeclarationBlock declarations,
-        int indent)
+    private static void WriteDeclarations(StringBuilder builder, CssDeclarationBlock declarations, int indent)
     {
         var padding = new string(' ', indent);
         foreach (var declaration in declarations.Declarations)

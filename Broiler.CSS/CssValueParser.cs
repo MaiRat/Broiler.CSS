@@ -1,30 +1,31 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace Broiler.CSS;
 
 public static class CssValueParser
 {
-    private static readonly Dictionary<string, CssColor> NamedColors =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["black"] = new(0, 0, 0),
-            ["silver"] = new(192, 192, 192),
-            ["gray"] = new(128, 128, 128),
-            ["white"] = new(255, 255, 255),
-            ["maroon"] = new(128, 0, 0),
-            ["red"] = new(255, 0, 0),
-            ["purple"] = new(128, 0, 128),
-            ["fuchsia"] = new(255, 0, 255),
-            ["green"] = new(0, 128, 0),
-            ["lime"] = new(0, 255, 0),
-            ["olive"] = new(128, 128, 0),
-            ["yellow"] = new(255, 255, 0),
-            ["navy"] = new(0, 0, 128),
-            ["blue"] = new(0, 0, 255),
-            ["teal"] = new(0, 128, 128),
-            ["aqua"] = new(0, 255, 255),
-            ["transparent"] = new(0, 0, 0, 0),
-        };
+    private static readonly Dictionary<string, CssColor> NamedColors = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["black"] = new(0, 0, 0),
+        ["silver"] = new(192, 192, 192),
+        ["gray"] = new(128, 128, 128),
+        ["white"] = new(255, 255, 255),
+        ["maroon"] = new(128, 0, 0),
+        ["red"] = new(255, 0, 0),
+        ["purple"] = new(128, 0, 128),
+        ["fuchsia"] = new(255, 0, 255),
+        ["green"] = new(0, 128, 0),
+        ["lime"] = new(0, 255, 0),
+        ["olive"] = new(128, 128, 0),
+        ["yellow"] = new(255, 255, 0),
+        ["navy"] = new(0, 0, 128),
+        ["blue"] = new(0, 0, 255),
+        ["teal"] = new(0, 128, 128),
+        ["aqua"] = new(0, 255, 255),
+        ["transparent"] = new(0, 0, 0, 0),
+    };
 
     public static CssValue Parse(string? text)
     {
@@ -128,38 +129,37 @@ public static class CssValueParser
         return false;
     }
 
-    private static CssUnit ParseUnit(string suffix) =>
-        suffix.ToLowerInvariant() switch
-        {
-            "" => CssUnit.None,
-            "%" => CssUnit.Percent,
-            "px" => CssUnit.Px,
-            "em" => CssUnit.Em,
-            "rem" => CssUnit.Rem,
-            "ex" => CssUnit.Ex,
-            "ch" => CssUnit.Ch,
-            "ic" => CssUnit.Ic,
-            "lh" => CssUnit.Lh,
-            "rlh" => CssUnit.Rlh,
-            "vw" => CssUnit.Vw,
-            "vh" => CssUnit.Vh,
-            "vmin" => CssUnit.Vmin,
-            "vmax" => CssUnit.Vmax,
-            "cm" => CssUnit.Cm,
-            "mm" => CssUnit.Mm,
-            "q" => CssUnit.Q,
-            "in" => CssUnit.In,
-            "pt" => CssUnit.Pt,
-            "pc" => CssUnit.Pc,
-            "deg" => CssUnit.Deg,
-            "grad" => CssUnit.Grad,
-            "rad" => CssUnit.Rad,
-            "turn" => CssUnit.Turn,
-            "s" => CssUnit.S,
-            "ms" => CssUnit.Ms,
-            "fr" => CssUnit.Fr,
-            _ => CssUnit.Unknown,
-        };
+    private static CssUnit ParseUnit(string suffix) => suffix.ToLowerInvariant() switch
+    {
+        "" => CssUnit.None,
+        "%" => CssUnit.Percent,
+        "px" => CssUnit.Px,
+        "em" => CssUnit.Em,
+        "rem" => CssUnit.Rem,
+        "ex" => CssUnit.Ex,
+        "ch" => CssUnit.Ch,
+        "ic" => CssUnit.Ic,
+        "lh" => CssUnit.Lh,
+        "rlh" => CssUnit.Rlh,
+        "vw" => CssUnit.Vw,
+        "vh" => CssUnit.Vh,
+        "vmin" => CssUnit.Vmin,
+        "vmax" => CssUnit.Vmax,
+        "cm" => CssUnit.Cm,
+        "mm" => CssUnit.Mm,
+        "q" => CssUnit.Q,
+        "in" => CssUnit.In,
+        "pt" => CssUnit.Pt,
+        "pc" => CssUnit.Pc,
+        "deg" => CssUnit.Deg,
+        "grad" => CssUnit.Grad,
+        "rad" => CssUnit.Rad,
+        "turn" => CssUnit.Turn,
+        "s" => CssUnit.S,
+        "ms" => CssUnit.Ms,
+        "fr" => CssUnit.Fr,
+        _ => CssUnit.Unknown,
+    };
 
     private static bool TryParseHexColor(string input, out CssColor color)
     {
@@ -168,7 +168,7 @@ public static class CssValueParser
         if (hex.Length is not (3 or 4 or 6 or 8))
             return false;
 
-        Span<byte> channels = stackalloc byte[4] { 0, 0, 0, 255 };
+        Span<byte> channels = [0, 0, 0, 255];
         var shortForm = hex.Length is 3 or 4;
         var channelCount = hex.Length is 4 or 8 ? 4 : 3;
         for (var index = 0; index < channelCount; index++)

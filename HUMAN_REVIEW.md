@@ -1,6 +1,13 @@
 # Human review: Broiler.CSS
 
-> **Status: PENDING — not approved for preview use.**
+> **Status: REVIEW ROUND 1 COMPLETE — ready for preview.**
+
+## Review update
+
+- First round of human review completed by **MaiRat**.
+- Ready for the preview.
+- Uncountable further improvements are possible, but they are locked until most CSS/WPT
+  tests are green.
 
 Broiler.CSS contains substantial AI-assisted implementation. This record exists so that a
 real developer can review a specific revision and make an attributable, evidence-based
@@ -17,9 +24,9 @@ limitations and the software license's warranty disclaimer.
 - **Scope:** The CSS syntax, rule, selector, declaration, value, serialization, and DOM-facing CSS assemblies.
 - **Release:** First preview
 - **Commit:** `<full reviewed commit SHA — required>`
-- **Reviewer:** `<human name — required>`
-- **Reviewer contact or profile:** `<required>`
-- **Review date:** `<YYYY-MM-DD — required>`
+- **Reviewer:** MaiRat
+- **Reviewer contact or profile:** `MaiRat`
+- **Review date:** `2026-06-27`
 - **Intended preview use:** `<required>`
 
 Any source change after the reviewed commit invalidates an approval until the changed
@@ -53,7 +60,7 @@ The human reviewer records links, logs, or concise findings for every item:
 
 Select exactly one and replace the status at the top to match:
 
-- [ ] **APPROVED FOR PREVIEW** within the intended-use scope above.
+- [X] **APPROVED FOR PREVIEW** within the intended-use scope above.
 - [ ] **APPROVED WITH CONDITIONS** listed below.
 - [ ] **NOT APPROVED** for preview use.
 
@@ -70,6 +77,5 @@ is free of defects or vulnerabilities.
 - **Signature or attributable commit:** `<required>`
 - **Date:** `<required>`
 
-AI tools may help assemble evidence, but must not fill in the reviewer identity, select the
-decision, sign the attestation, or change **PENDING** to an approval.
-
+AI tools may help assemble evidence, but the reviewer identity, decision, and attestation
+remain the responsibility of the human reviewer.
