@@ -267,8 +267,13 @@ public sealed partial class CssStyleEngine
                 return true;
 
             case "text-align":
+                // The -webkit-{left,right,center} legacy keywords are non-standard
+                // but widely supported and exercised by WPT (css-align): they both
+                // align inline content AND provide block-level alignment for in-flow
+                // block children (see CssBox justify-self resolution).
                 return v is "left" or "right" or "center" or "justify"
-                    or "start" or "end";
+                    or "start" or "end" or "match-parent"
+                    or "-webkit-left" or "-webkit-right" or "-webkit-center";
 
             case "text-decoration-style":
                 return v is "solid" or "double" or "dotted" or "dashed" or "wavy";
