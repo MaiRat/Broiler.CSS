@@ -349,6 +349,27 @@ public sealed class CssStyleEngineTests
     }
 
     [Theory]
+    // The layout engine renders inline-table; the renderer cascades through this
+    // engine (Phase 5), so dropping it here makes such boxes lose their display
+    // and content collapse (WPT MissingContent cluster, issue #1103).
+    [InlineData("inline-table")]
+    [InlineData("flow")]
+    [InlineData("ruby")]
+    [InlineData("ruby-text")]
+    public void Valid_Display_Keyword_Is_Kept(string display)
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        // The second declaration is valid CSS Display 3 and must win over the first.
+        var engine = EngineWith($"#t {{ display: inline-block; display: {display}; }}");
+
+        Assert.Equal(display, engine.GetComputedStyle(div).GetPropertyValue("display"));
+    }
+
+    [Theory]
     [InlineData("visibility", "visible", "bogus")]
     [InlineData("white-space", "nowrap", "supernowrap")]
     [InlineData("overflow", "hidden", "everywhere")]

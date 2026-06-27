@@ -236,11 +236,18 @@ public sealed partial class CssStyleEngine
             case "display":
                 return v is "block" or "inline" or "inline-block" or "none"
                     or "flex" or "inline-flex" or "grid" or "inline-grid"
-                    or "table" or "table-row" or "table-cell" or "table-column"
-                    or "table-row-group" or "table-header-group"
+                    or "table" or "inline-table" or "table-row" or "table-cell"
+                    or "table-column" or "table-row-group" or "table-header-group"
                     or "table-footer-group" or "table-column-group"
                     or "table-caption" or "list-item" or "contents"
-                    or "run-in" or "flow-root";
+                    or "run-in" or "flow" or "flow-root"
+                    // Internal ruby display types (CSS Display 3). The layout engine
+                    // does not model ruby specially yet, but these are valid <display>
+                    // keywords — accepting them is strictly better than dropping a
+                    // valid declaration and falling back to a stale cascade value.
+                    or "ruby" or "ruby-base" or "ruby-text"
+                    or "ruby-base-container" or "ruby-text-container"
+                    or "math";
 
             case "position":
                 return v is "static" or "relative" or "absolute" or "fixed" or "sticky";
