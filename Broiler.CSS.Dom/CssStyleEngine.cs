@@ -153,18 +153,23 @@ public sealed partial class CssStyleEngine
     /// its own inheritance pass for everything not declared here. The <c>inherit</c>
     /// keyword is folded to the parent element's computed value (its used meaning), since
     /// the renderer projects concrete values rather than CSS-wide keywords. Inline
-    /// <c>style=</c> is deliberately excluded; the renderer applies it separately so its
-    /// existing presentational-attribute ordering is preserved.
+    /// <c>style=</c> participates in the same cascade when <paramref name="includeInlineStyle"/>
+    /// is set; the default remains stylesheet-only for declared-style consumers.
     /// </remarks>
     public IReadOnlyDictionary<string, string> GetCascadedStyle(
         DomElement element,
-        string? pseudoElement = null)
+        string? pseudoElement = null,
+        bool includeInlineStyle = false)
     {
         if (element is null)
             return EmptyReadOnlyMap;
 
         ObserveDocument(element);
-        return ComputeCascadedStyle(element, NormalizePseudoElement(pseudoElement), new HashSet<DomElement>());
+        return ComputeCascadedStyle(
+            element,
+            NormalizePseudoElement(pseudoElement),
+            new HashSet<DomElement>(),
+            includeInlineStyle);
     }
 
     private static readonly IReadOnlyDictionary<string, string> EmptyReadOnlyMap =
@@ -173,7 +178,8 @@ public sealed partial class CssStyleEngine
     private Dictionary<string, string> ComputeCascadedStyle(
         DomElement element,
         string? pseudoElement,
-        HashSet<DomElement> ancestorsInProgress)
+        HashSet<DomElement> ancestorsInProgress,
+        bool includeInlineStyle)
     {
         var computed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -196,8 +202,9 @@ public sealed partial class CssStyleEngine
 
         var registrations = CollectCustomPropertyRegistrations();
 
-        // 1. Cascade declarations from all registered stylesheets (no inline).
-        CollectCascadedDeclarations(element, pseudoElement, computed);
+        // 1. Cascade declarations from all registered stylesheets and, when requested,
+        // the inline declaration block at author origin with inline specificity.
+        CollectCascadedDeclarations(element, pseudoElement, computed, includeInlineStyle);
 
         // 2. Custom properties: inheritance, registered defaults, var().
         MergeResolvedCustomProperties(computed, element, registrations, ancestorsInProgress);
@@ -306,24 +313,8 @@ public sealed partial class CssStyleEngine
 
         var registrations = CollectCustomPropertyRegistrations();
 
-        // 1. Cascade declarations from all registered stylesheets.
-        CollectCascadedDeclarations(element, pseudoElement, computed);
-
-        // 2. Inline style attribute (author origin, beats selector declarations).
-        if (pseudoElement is null)
-        {
-            var inline = Attr(element, "style");
-            if (!string.IsNullOrEmpty(inline))
-            {
-                foreach (var (name, value, _) in ParseDeclarations(inline))
-                {
-                    if (IsAcceptableDeclarationValue(name, value))
-                        computed[name] = value;
-                    else
-                        CssEngineDiagnostics.ReportRejected(name, value);
-                }
-            }
-        }
+        // 1-2. Stylesheet and inline declarations share one origin-aware cascade.
+        CollectCascadedDeclarations(element, pseudoElement, computed, includeInlineStyle: true);
 
         // 3. Custom properties: resolve inheritance, registered defaults, and var().
         MergeResolvedCustomProperties(computed, element, registrations, ancestorsInProgress);
@@ -369,13 +360,32 @@ public sealed partial class CssStyleEngine
 
     // ---- Cascade -----------------------------------------------------------
 
-    private void CollectCascadedDeclarations(DomElement element, string? pseudoElement, Dictionary<string, string> computed)
+    private void CollectCascadedDeclarations(
+        DomElement element,
+        string? pseudoElement,
+        Dictionary<string, string> computed,
+        bool includeInlineStyle = false)
     {
         var winners = new Dictionary<string, CascadeSlot>(StringComparer.OrdinalIgnoreCase);
         var order = 0;
 
         foreach (var entry in _sheets)
             CollectFromRules(entry.Sheet.Rules, entry.Origin, element, pseudoElement, winners, ref order);
+
+        if (includeInlineStyle && pseudoElement is null)
+        {
+            var inline = Attr(element, "style");
+            if (!string.IsNullOrEmpty(inline))
+            {
+                foreach (var (name, value, important) in ParseDeclarations(inline))
+                {
+                    if (IsAcceptableDeclarationValue(name, value))
+                        AddDeclaration(winners, name, value, important, CssOrigin.Author, int.MaxValue, order++);
+                    else
+                        CssEngineDiagnostics.ReportRejected(name, value);
+                }
+            }
+        }
 
         foreach (var kv in winners)
             computed[kv.Key] = kv.Value.Value;
@@ -599,6 +609,12 @@ public sealed partial class CssStyleEngine
         if (pseudoElement.Equals("::first-letter", StringComparison.OrdinalIgnoreCase) ||
             pseudoElement.Equals(":first-letter", StringComparison.OrdinalIgnoreCase))
             return "::first-letter";
+        if (pseudoElement.Equals("::selection", StringComparison.OrdinalIgnoreCase))
+            return "::selection";
+        if (pseudoElement.Equals("::backdrop", StringComparison.OrdinalIgnoreCase))
+            return "::backdrop";
+        if (pseudoElement.Equals("::marker", StringComparison.OrdinalIgnoreCase))
+            return "::marker";
 
         return null;
     }

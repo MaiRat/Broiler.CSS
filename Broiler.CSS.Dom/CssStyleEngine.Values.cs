@@ -319,14 +319,14 @@ public sealed partial class CssStyleEngine
                     or "none";
 
             case "border-style":
+                return IsBorderStyleList(v);
+
             case "border-top-style":
             case "border-right-style":
             case "border-bottom-style":
             case "border-left-style":
             case "outline-style":
-                return v is "none" or "hidden" or "dotted" or "dashed"
-                    or "solid" or "double" or "groove" or "ridge"
-                    or "inset" or "outset";
+                return IsBorderStyleKeyword(v);
 
             case "font-style":
                 return v is "normal" or "italic" or "oblique";
@@ -355,6 +355,17 @@ public sealed partial class CssStyleEngine
                 return true;
         }
     }
+
+    private static bool IsBorderStyleList(string value)
+    {
+        var parts = SplitCssValues(value);
+        return parts.Length is >= 1 and <= 4 && parts.All(IsBorderStyleKeyword);
+    }
+
+    private static bool IsBorderStyleKeyword(string value) =>
+        value is "none" or "hidden" or "dotted" or "dashed"
+            or "solid" or "double" or "groove" or "ridge"
+            or "inset" or "outset";
 
     // ---- Shorthand expansion ----------------------------------------------
 

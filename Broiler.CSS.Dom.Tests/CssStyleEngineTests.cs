@@ -514,6 +514,71 @@ public sealed class CssStyleEngineTests
     }
 
     [Fact]
+    public void GetCascadedStyle_Can_Include_Inline_Style_In_The_Author_Cascade()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        div.SetAttribute("style", "color: orange; margin: 1px 2px;");
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { color: red; } #t { margin: 9px !important; }");
+        var cascaded = engine.GetCascadedStyle(div, includeInlineStyle: true);
+
+        Assert.Equal("orange", cascaded["color"]);
+        Assert.Equal("9px", cascaded["margin-top"]);
+        Assert.Equal("9px", cascaded["margin-right"]);
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Inline_Important_Beats_Author_Important()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        div.SetAttribute("style", "color: orange !important;");
+        body.AppendChild(div);
+
+        var engine = EngineWith("#t { color: red !important; }");
+
+        Assert.Equal("orange", engine.GetCascadedStyle(div, includeInlineStyle: true)["color"]);
+    }
+
+    [Theory]
+    [InlineData("::selection")]
+    [InlineData("::backdrop")]
+    [InlineData("::marker")]
+    public void GetCascadedStyle_Projects_Generic_Pseudo_Elements(string pseudoElement)
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.Id = "t";
+        body.AppendChild(div);
+
+        var engine = EngineWith($"#t {{ color: red; }} #t{pseudoElement} {{ color: blue; }}");
+        var cascaded = engine.GetCascadedStyle(div, pseudoElement);
+
+        Assert.Equal("blue", cascaded["color"]);
+    }
+
+    [Fact]
+    public void GetCascadedStyle_Expands_MultiValue_Pseudo_Element_Borders()
+    {
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        div.SetAttribute("class", "trick");
+        body.AppendChild(div);
+
+        var engine = EngineWith(".trick::before { content: ''; border-style: none solid solid; border-width: 20px; }");
+        var cascaded = engine.GetCascadedStyle(div, "::before");
+
+        Assert.Equal("none", cascaded["border-top-style"]);
+        Assert.Equal("solid", cascaded["border-right-style"]);
+        Assert.Equal("solid", cascaded["border-bottom-style"]);
+        Assert.Equal("solid", cascaded["border-left-style"]);
+    }
+
+    [Fact]
     public void GetCascadedStyle_Folds_Inherit_To_Parent_Computed()
     {
         var (_, _, body) = NewDocument();
