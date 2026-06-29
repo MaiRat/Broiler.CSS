@@ -80,7 +80,11 @@ public sealed partial class CssStyleEngine
         }
     }
 
-    private static string ResolveKnownCustomProperties(string value, Dictionary<string, string> computed, int depth = 0)
+    private static string ResolveKnownCustomProperties(
+        string value,
+        Dictionary<string, string> computed,
+        int depth = 0,
+        HashSet<string>? visiting = null)
     {
         if (string.IsNullOrEmpty(value)
             || depth >= 8
@@ -109,7 +113,7 @@ public sealed partial class CssStyleEngine
             if (closeParenIndex < 0)
             {
                 string inner = value[(openParenIndex + 1)..];
-                string recovered = ResolveVarFunction(inner, computed, depth + 1);
+                string recovered = ResolveVarFunction(inner, computed, depth + 1, visiting);
                 if (recovered == $"var({inner})")
                 {
                     sb.Append(value, varIndex, value.Length - varIndex);
@@ -126,7 +130,8 @@ public sealed partial class CssStyleEngine
             string replacement = ResolveVarFunction(
                 value.Substring(openParenIndex + 1, closeParenIndex - openParenIndex - 1),
                 computed,
-                depth + 1);
+                depth + 1,
+                visiting);
 
             if (replacement == varFunction)
             {
@@ -144,7 +149,11 @@ public sealed partial class CssStyleEngine
         return changed ? sb.ToString() : value;
     }
 
-    private static string ResolveVarFunction(string inner, Dictionary<string, string> computed, int depth)
+    private static string ResolveVarFunction(
+        string inner,
+        Dictionary<string, string> computed,
+        int depth,
+        HashSet<string>? visiting = null)
     {
         string propertyName = inner.Trim();
         string fallback = string.Empty;
@@ -162,10 +171,32 @@ public sealed partial class CssStyleEngine
             return $"var({inner})";
 
         if (computed.TryGetValue(propertyName, out var propertyValue))
-            return ResolveKnownCustomProperties(propertyValue, computed, depth);
+        {
+            // Cycle detection (CSS Custom Properties §3): if this custom property is
+            // already being resolved further up the chain, the reference forms a
+            // dependency cycle. Every property in the cycle is invalid at
+            // computed-value time, so substitute the guaranteed-invalid value
+            // (empty) instead of recursing — without this the cyclic value is
+            // re-expanded each pass and grows exponentially until the process runs
+            // out of memory (WPT css-variables/css-properties-values-api cycles).
+            visiting ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!visiting.Add(propertyName))
+                return string.Empty;
+
+            var resolved = ResolveKnownCustomProperties(propertyValue, computed, depth, visiting);
+            visiting.Remove(propertyName);
+
+            // A custom property that resolved to the guaranteed-invalid value (empty,
+            // e.g. because it is part of a cycle) makes the referencing var() fall
+            // back to its provided default when one exists (CSS Custom Properties §3).
+            if (string.IsNullOrEmpty(resolved) && hasFallback)
+                return ResolveKnownCustomProperties(fallback, computed, depth, visiting);
+
+            return resolved;
+        }
 
         if (hasFallback)
-            return ResolveKnownCustomProperties(fallback, computed, depth);
+            return ResolveKnownCustomProperties(fallback, computed, depth, visiting);
 
         return $"var({inner})";
     }
