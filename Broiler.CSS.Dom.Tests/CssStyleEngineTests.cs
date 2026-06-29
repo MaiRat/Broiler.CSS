@@ -255,6 +255,41 @@ public sealed class CssStyleEngineTests
     }
 
     [Fact]
+    public void Cyclic_Custom_Properties_Resolve_To_Invalid_Without_Exhausting_Memory()
+    {
+        var (_, html, body) = NewDocument();
+        // Branching mutual cycle: --a references --b twice and vice-versa. Without
+        // cycle detection each resolution pass doubles the value, blowing up to
+        // gigabytes and aborting the process (WPT #1136 shard SIGABRT / OOM).
+        html.SetAttribute("style", "--a: var(--b) var(--b); --b: var(--a) var(--a);");
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        var engine = EngineWith("div { color: var(--a, fallback); }");
+
+        // The point of the test is that this returns at all (no OOM / no hang) and
+        // never emits a multi-megabyte expansion of the cyclic value.
+        var color = engine.GetComputedStyle(div).GetPropertyValue("color");
+        Assert.DoesNotContain("var(", color);
+        Assert.True(color.Length < 64);
+    }
+
+    [Fact]
+    public void Self_Referential_Custom_Property_Does_Not_Recurse_Forever()
+    {
+        var (_, html, body) = NewDocument();
+        html.SetAttribute("style", "--loop: var(--loop);");
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        var engine = EngineWith("div { width: var(--loop, 10px); }");
+
+        // --loop is cyclic → guaranteed-invalid, so the var() falls back to 10px.
+        var width = engine.GetComputedStyle(div).GetPropertyValue("width");
+        Assert.Equal("10px", width);
+    }
+
+    [Fact]
     public void Media_Query_Applies_Only_When_Environment_Matches()
     {
         var (_, _, body) = NewDocument();
