@@ -462,6 +462,9 @@ public sealed partial class CssStyleEngine
         if (computed.TryGetValue("border", out var borderVal))
             ExpandBorderShorthand(computed, borderVal);
 
+        if (computed.TryGetValue("outline", out var outlineVal))
+            ExpandOutlineShorthand(computed, outlineVal);
+
         if (computed.TryGetValue("border-left", out var borderLeftVal))
             ExpandBorderSideShorthand(computed, borderLeftVal, "left");
         if (computed.TryGetValue("border-top", out var borderTopVal))
@@ -728,6 +731,33 @@ public sealed partial class CssStyleEngine
             ExpandBoxShorthand(computed, style, "border-top-style", "border-right-style", "border-bottom-style", "border-left-style");
         if (color != null)
             ExpandBoxShorthand(computed, color, "border-top-color", "border-right-color", "border-bottom-color", "border-left-color");
+    }
+
+    /// <summary>
+    /// CSS UI §2: expands the <c>outline</c> shorthand
+    /// (<c>&lt;outline-width&gt; || &lt;outline-style&gt; || &lt;outline-color&gt;</c>)
+    /// into its longhands. The <c>auto</c> style keyword (focus-ring) is accepted.
+    /// </summary>
+    private static void ExpandOutlineShorthand(Dictionary<string, string> computed, string value)
+    {
+        var parts = SplitCssValues(value);
+        string? width = null, style = null, color = null;
+
+        foreach (var part in parts)
+        {
+            var lower = part.ToLowerInvariant();
+            if (lower is "none" or "hidden" or "dotted" or "dashed" or "solid"
+                or "double" or "groove" or "ridge" or "inset" or "outset" or "auto")
+                style ??= part;
+            else if (lower is "thin" or "medium" or "thick" || IsLengthOrPercentage(lower))
+                width ??= part;
+            else
+                color ??= part;
+        }
+
+        if (width != null && !computed.ContainsKey("outline-width")) computed["outline-width"] = width;
+        if (style != null && !computed.ContainsKey("outline-style")) computed["outline-style"] = style;
+        if (color != null && !computed.ContainsKey("outline-color")) computed["outline-color"] = color;
     }
 
     private static void ExpandBorderSideShorthand(Dictionary<string, string> computed, string value, string side)

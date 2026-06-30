@@ -176,6 +176,15 @@ public sealed partial class CssSelectorMatcher
                 "checked" => IsCheckable(element) &&
                     (_stateProvider?.IsChecked(element) ?? element.HasAttribute("checked")),
                 "link" or "visited" => IsNamed(element, "a") && element.HasAttribute("href"),
+                // Interactive/user-state pseudo-classes never match in a static
+                // render (nothing is focused, hovered, active, or targeted), so a UA
+                // rule like `:focus { outline: thin dotted invert }` must not apply
+                // to every element.
+                "focus" or "focus-visible" or "focus-within"
+                    or "hover" or "active"
+                    or "target" or "target-within"
+                    or "autofill" or "placeholder-shown"
+                    or "user-valid" or "user-invalid" => false,
                 _ => true,
             };
             if (!matches)
