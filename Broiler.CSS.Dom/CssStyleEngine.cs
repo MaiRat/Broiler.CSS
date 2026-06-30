@@ -369,7 +369,14 @@ public sealed partial class CssStyleEngine
         var winners = new Dictionary<string, CascadeSlot>(StringComparer.OrdinalIgnoreCase);
         var order = 0;
 
-        foreach (var entry in _sheets)
+        // Snapshot the sheet list before iterating: selector matching can call
+        // back into the host (e.g. the DOM bridge) which may re-sync this engine's
+        // stylesheets mid-cascade (ClearStyleSheets + AddStyleSheet) when the
+        // document mutated — e.g. while anchor positioning rewrites styles. That
+        // structural change to a live foreach would throw "Collection was
+        // modified" (WPT content-visibility-anchor-positioning); the snapshot
+        // keeps the in-progress cascade self-consistent and crash-free.
+        foreach (var entry in _sheets.ToArray())
             CollectFromRules(entry.Sheet.Rules, entry.Origin, element, pseudoElement, winners, ref order);
 
         if (includeInlineStyle && pseudoElement is null)
