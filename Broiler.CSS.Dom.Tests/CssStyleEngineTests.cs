@@ -275,6 +275,30 @@ public sealed class CssStyleEngineTests
     }
 
     [Fact]
+    public void Acyclic_Exponential_Custom_Property_Chain_Falls_Back_Without_Exhausting_Memory()
+    {
+        var (_, html, body) = NewDocument();
+        // Non-cyclic "billion laughs": each property references the one below it
+        // twice, so a naive substitution doubles per level and reaches gigabytes
+        // by --prop30 (WPT css-variables/variable-exponential-blowup → SIGABRT).
+        // No cycle exists, so cycle detection alone does not help — the length
+        // bound must kick in and make the overflowing property guaranteed-invalid.
+        var chain = new System.Text.StringBuilder("--prop0: lol;");
+        for (var i = 1; i <= 30; i++)
+            chain.Append($"--prop{i}: var(--prop{i - 1}) var(--prop{i - 1});");
+        html.SetAttribute("style", chain.ToString());
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        var engine = EngineWith("div { background-color: var(--prop30, green); }");
+
+        // The deep property overflows → guaranteed-invalid → the var() uses its
+        // fallback. The point is this returns at all (no OOM / no hang).
+        var bg = engine.GetComputedStyle(div).GetPropertyValue("background-color");
+        Assert.Equal("green", bg);
+    }
+
+    [Fact]
     public void Self_Referential_Custom_Property_Does_Not_Recurse_Forever()
     {
         var (_, html, body) = NewDocument();

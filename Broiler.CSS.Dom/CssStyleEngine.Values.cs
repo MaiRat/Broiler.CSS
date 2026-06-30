@@ -15,6 +15,26 @@ public sealed partial class CssStyleEngine
 {
     private const int MaxCustomPropertyResolutionPasses = 4;
 
+    // CSS Custom Properties: a var() reference is substituted with the
+    // referenced property's value, which may itself contain further var()s.
+    // Non-cyclic chains where each property references a lower one twice
+    // (--p2: var(--p1) var(--p1); --p3: var(--p2) var(--p2); …) expand
+    // exponentially — the "billion laughs" pattern — and would exhaust memory
+    // (WPT css-variables/variable-exponential-blowup). Browsers cap the
+    // substituted length; once a property's resolved value exceeds this bound
+    // it computes to the guaranteed-invalid value instead.
+    private const int MaxResolvedCustomPropertyValueLength = 100_000;
+
+    // Sentinel for the CSS "guaranteed-invalid value" produced when var()
+    // substitution overflows the length bound. Distinct from a legitimately
+    // empty custom property (`--x: ;`), which keeps its empty value: a
+    // referencing var() with a fallback uses the fallback when the referenced
+    // property is guaranteed-invalid, but uses the empty value when it is
+    // merely empty. The marker propagates up unchanged (it contains no
+    // `var(`) and is scrubbed from any non-custom property before output.
+    // Uses U+FFFF/U+FFFE noncharacters so it can never collide with real CSS.
+    private const string CustomPropertyInvalidMarker = "￿￾css-guaranteed-invalid￾￿";
+
     // ---- CSS-wide keywords -------------------------------------------------
 
     private static void ResolveCssWideKeywordProperties(
@@ -76,7 +96,11 @@ public sealed partial class CssStyleEngine
                 continue;
             }
 
-            computed[key] = ResolveKnownCustomProperties(value, computed);
+            var resolved = ResolveKnownCustomProperties(value, computed);
+            // A non-custom property whose value overflowed substitution is
+            // guaranteed-invalid; drop it (it never reaches the renderer) so the
+            // marker can't leak into output.
+            computed[key] = resolved == CustomPropertyInvalidMarker ? string.Empty : resolved;
         }
     }
 
@@ -137,11 +161,24 @@ public sealed partial class CssStyleEngine
             {
                 sb.Append(varFunction);
             }
+            else if (replacement == CustomPropertyInvalidMarker)
+            {
+                // A nested substitution was guaranteed-invalid; the whole value
+                // is too. Propagate the marker rather than embedding it.
+                return CustomPropertyInvalidMarker;
+            }
             else
             {
                 sb.Append(replacement);
                 changed = true;
             }
+
+            // Guard against exponential blowup of non-cyclic var() chains: once
+            // the accumulated substitution exceeds the bound the value is
+            // guaranteed-invalid, which the referencing var() fallbacks and the
+            // non-custom-property scrub then treat as such.
+            if (sb.Length > MaxResolvedCustomPropertyValueLength)
+                return CustomPropertyInvalidMarker;
 
             position = closeParenIndex + 1;
         }
@@ -186,10 +223,12 @@ public sealed partial class CssStyleEngine
             var resolved = ResolveKnownCustomProperties(propertyValue, computed, depth, visiting);
             visiting.Remove(propertyName);
 
-            // A custom property that resolved to the guaranteed-invalid value (empty,
-            // e.g. because it is part of a cycle) makes the referencing var() fall
+            // A custom property that resolved to the guaranteed-invalid value
+            // (empty because it is part of a cycle, or the overflow marker
+            // because its substitution blew up) makes the referencing var() fall
             // back to its provided default when one exists (CSS Custom Properties §3).
-            if (string.IsNullOrEmpty(resolved) && hasFallback)
+            bool invalid = string.IsNullOrEmpty(resolved) || resolved == CustomPropertyInvalidMarker;
+            if (invalid && hasFallback)
                 return ResolveKnownCustomProperties(fallback, computed, depth, visiting);
 
             return resolved;
