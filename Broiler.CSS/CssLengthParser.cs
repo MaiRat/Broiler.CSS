@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 
 namespace Broiler.CSS;
@@ -19,14 +18,6 @@ namespace Broiler.CSS;
 public static class CssLengthParser
 {
     private readonly record struct LengthEvaluation(double Pixels, bool IsUnitless);
-    /// <summary>
-    /// Current viewport dimensions (in pixels) used to resolve CSS viewport
-    /// units (vh, vw, vmin, vmax).  Set by the layout engine before each
-    /// layout pass.  Defaults to 0×0 which causes viewport-unit lengths to
-    /// evaluate to zero.
-    /// </summary>
-    [ThreadStatic]
-    private static SizeF _viewportSize; // MaiRat: currently dead code
 
     /// <summary>Pre-computed factor for 1vh (viewport height / 100).</summary>
     [ThreadStatic]
@@ -50,49 +41,10 @@ public static class CssLengthParser
     /// </summary>
     public static void SetViewportSize(float width, float height)
     {
-        _viewportSize = new SizeF(width, height);
         _vwFactor = width * 0.01;
         _vhFactor = height * 0.01;
         _vminFactor = Math.Min(width, height) * 0.01;
         _vmaxFactor = Math.Max(width, height) * 0.01;
-    }
-    public static bool IsFloat(string str, int idx, int length)
-    {
-        if (length < 1)
-            return false;
-
-        bool sawDot = false;
-
-        for (int i = 0; i < length; i++)
-        {
-            if (str[idx + i] == '.')
-            {
-                if (sawDot)
-                    return false;
-
-                sawDot = true;
-            }
-            else if (!char.IsDigit(str[idx + i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public static bool IsInt(string str, int idx, int length)
-    {
-        if (length < 1)
-            return false;
-
-        for (int i = 0; i < length; i++)
-        {
-            if (!char.IsDigit(str[idx + i]))
-                return false;
-        }
-
-        return true;
     }
 
     public static bool IsValidLength(string value)

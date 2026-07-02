@@ -8,20 +8,10 @@ using Broiler.Dom;
 
 namespace Broiler.CSS.Dom;
 
-public sealed partial class CssSelectorMatcher
+public sealed partial class CssSelectorMatcher(ICssSelectorStateProvider? stateProvider = null)
 {
     private static readonly char[] AsciiWhitespace = [' ', '\t', '\n', '\r', '\f'];
     private static readonly Regex AttributePattern = AttributeRegex();
-    private readonly ICssSelectorStateProvider? _stateProvider;
-
-    public CssSelectorMatcher(ICssSelectorStateProvider? stateProvider = null) =>
-        _stateProvider = stateProvider;
-
-    public bool Matches(DomElement element, CssSelector selector, DomElement? scope = null)
-    {
-        ArgumentNullException.ThrowIfNull(selector);
-        return Matches(element, selector.Text, scope);
-    }
 
     public bool Matches(DomElement element, string selector, DomElement? scope = null)
     {
@@ -174,7 +164,7 @@ public sealed partial class CssSelectorMatcher
                 "enabled" => IsFormControl(element) && !element.HasAttribute("disabled"),
                 "disabled" => IsFormControl(element) && element.HasAttribute("disabled"),
                 "checked" => IsCheckable(element) &&
-                    (_stateProvider?.IsChecked(element) ?? element.HasAttribute("checked")),
+                    (stateProvider?.IsChecked(element) ?? element.HasAttribute("checked")),
                 "link" or "visited" => IsNamed(element, "a") && element.HasAttribute("href"),
                 // Interactive/user-state pseudo-classes never match in a static
                 // render (nothing is focused, hovered, active, or targeted), so a UA
@@ -257,7 +247,7 @@ public sealed partial class CssSelectorMatcher
             ? TypeSiblings(element)
             : ElementSiblings(element);
         if (filter is not null)
-            siblings = siblings.Where(candidate => MatchesAny(candidate, filter, null)).ToList();
+            siblings = [.. siblings.Where(candidate => MatchesAny(candidate, filter, null))];
         var position = fromEnd
             ? siblings.Count - siblings.FindIndex(candidate => ReferenceEquals(candidate, element))
             : siblings.FindIndex(candidate => ReferenceEquals(candidate, element)) + 1;

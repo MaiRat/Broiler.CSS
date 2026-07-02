@@ -31,10 +31,10 @@ public static class CssValueParser
     {
         var value = text?.Trim() ?? string.Empty;
         if (value.Length == 0)
-            return new CssValue(string.Empty, CssValueKind.Empty);
+            return new CssValue(string.Empty);
 
         if (TryParseColor(value, out var color))
-            return new CssValue(value, CssValueKind.Color, color: color);
+            return new CssValue(value);
 
         if (TryParseNumeric(value, out var numeric))
         {
@@ -44,19 +44,19 @@ public static class CssValueParser
                 CssUnit.Percent => CssValueKind.Percentage,
                 _ => CssValueKind.Dimension,
             };
-            return new CssValue(value, kind, numeric);
+            return new CssValue(value, numeric);
         }
 
         if (IsQuoted(value))
-            return new CssValue(value, CssValueKind.String);
+            return new CssValue(value);
         if (StartsFunction(value, "url"))
-            return new CssValue(value, CssValueKind.Url);
+            return new CssValue(value);
         if (LooksLikeFunction(value))
-            return new CssValue(value, CssValueKind.Function);
+            return new CssValue(value);
         if (value.StartsWith("--", StringComparison.Ordinal))
-            return new CssValue(value, CssValueKind.Custom);
+            return new CssValue(value);
 
-        return new CssValue(value, CssValueKind.Keyword);
+        return new CssValue(value);
     }
 
     public static bool TryParseNumeric(string? text, out CssNumericValue value)

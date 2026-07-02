@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using Broiler.Dom;
 
 namespace Broiler.CSS.Dom;
@@ -42,17 +39,6 @@ public sealed partial class CssStyleEngine
         InvalidateAll();
     }
 
-    /// <summary>Removes a previously added stylesheet. Returns <c>true</c> if it was present.</summary>
-    public bool RemoveStyleSheet(CssStyleSheet sheet)
-    {
-        var index = _sheets.FindIndex(entry => ReferenceEquals(entry.Sheet, sheet));
-        if (index < 0)
-            return false;
-        _sheets.RemoveAt(index);
-        InvalidateAll();
-        return true;
-    }
-
     /// <summary>Removes all registered stylesheets.</summary>
     public void ClearStyleSheets()
     {
@@ -73,10 +59,6 @@ public sealed partial class CssStyleEngine
         _environment = environment;
         InvalidateAll();
     }
-
-    /// <summary>Indicates whether <paramref name="element"/> matches <paramref name="selector"/>.</summary>
-    public bool Matches(DomElement element, string selector, DomElement? scope = null) =>
-        _matcher.Matches(element, selector, scope);
 
     /// <summary>
     /// Evaluates a media-query list against the supplied CSS environment using the
@@ -109,8 +91,8 @@ public sealed partial class CssStyleEngine
         if (_cache.TryGetValue(key, out var cached))
             return cached;
 
-        var computed = ComputeStyle(element, normalizedPseudo, new HashSet<DomElement>());
-        var snapshot = new CssComputedStyle(computed, normalizedPseudo);
+        var computed = ComputeStyle(element, normalizedPseudo, []);
+        var snapshot = new CssComputedStyle(computed);
         _cache[key] = snapshot;
         return snapshot;
     }
@@ -283,7 +265,7 @@ public sealed partial class CssStyleEngine
             return cached;
 
         var computed = ComputeStyle(element, pseudoElement: null, ancestorsInProgress);
-        var snapshot = new CssComputedStyle(computed, pseudoElement: null);
+        var snapshot = new CssComputedStyle(computed);
         _cache[key] = snapshot;
         return snapshot;
     }

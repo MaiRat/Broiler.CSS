@@ -22,9 +22,6 @@ public sealed class CssParser
         return ParseDeclarationBlock(source ?? string.Empty, 0);
     }
 
-    // MaiRat: currently zero references
-    public static CssSelectorList ParseSelectors(string? source) => CssSelectorParser.Parse(source);
-
     private List<CssRule> ParseRules(string text, int sourceOffset)
     {
         var rules = new List<CssRule>();
@@ -200,8 +197,8 @@ public sealed class CssParser
             declarations.Add(new CssDeclaration(
                 name.StartsWith("--", StringComparison.Ordinal) ? name : name.ToLowerInvariant(),
                 CssValueParser.Parse(valueText),
-                important,
-                new CssSourceRange(sourceOffset + declarationStart + leading, trimmed.Length)));
+                important
+                ));
             declarationStart += raw.Length + 1;
         }
         return new CssDeclarationBlock(declarations);

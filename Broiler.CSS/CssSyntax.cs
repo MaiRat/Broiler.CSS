@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Broiler.CSS;
 
-internal static class CssSyntax
+public static class CssSyntax
 {
     public static IEnumerable<string> SplitTopLevel(string text, char separator)
     {

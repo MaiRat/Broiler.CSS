@@ -64,42 +64,6 @@ public static partial class RegexParserUtils
     [GeneratedRegex(CssFontSizeAndLineHeight, RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     public static partial Regex CssFontSizeAndLineHeightRegex();
 
-    public static string GetCssAtRules(string stylesheet, ref int startIdx)
-    {
-        startIdx = stylesheet.IndexOf('@', startIdx);
-
-        if (startIdx <= -1)
-            return null;
-
-        int count = 1;
-        int endIdx = stylesheet.IndexOf('{', startIdx);
-
-        if (endIdx <= -1)
-            return null;
-
-        endIdx++; // to prevent IndexOutOfRangeException at line 113. When '}' is last character in 'stylesheet' variable
-
-        while (count > 0 && endIdx < stylesheet.Length)
-        {
-            if (stylesheet[endIdx] == '{')
-            {
-                count++;
-            }
-            else if (stylesheet[endIdx] == '}')
-            {
-                count--;
-            }
-            endIdx++;
-        }
-
-        if (endIdx >= stylesheet.Length)
-            return null;
-
-        var atrule = stylesheet.Substring(startIdx, endIdx - startIdx + 1);
-        startIdx = endIdx;
-        return atrule;
-    }
-
     public static MatchCollection Match(Regex regex, string source) => regex.Matches(source);
 
     public static string Search(Regex regex, string source) => Search(regex, source, out _);
