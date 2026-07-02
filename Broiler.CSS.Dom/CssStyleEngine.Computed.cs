@@ -488,9 +488,14 @@ public sealed partial class CssStyleEngine
 
     private void InvalidateAll()
     {
+        // Bump first: a declared-cascade computation in flight captured the prior
+        // generation and will decline to memoize its (now-stale) result.
+        _cacheGeneration++;
         _registrations = null;
         if (_cache.Count > 0)
             _cache.Clear();
+        if (_declaredCascadeCache.Count > 0)
+            _declaredCascadeCache.Clear();
     }
 
     // ---- Property metadata -------------------------------------------------

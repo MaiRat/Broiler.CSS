@@ -41,6 +41,15 @@ public sealed class CssComputedStyle(IReadOnlyDictionary<string, string> propert
     /// <summary>The computed property name/value pairs.</summary>
     public IEnumerable<KeyValuePair<string, string>> Properties => properties;
 
+    /// <summary>
+    /// Returns the computed value of <paramref name="propertyName"/>, or the empty
+    /// string when it is absent (CSSOM <c>getPropertyValue</c> semantics).
+    /// </summary>
+    public string GetPropertyValue(string propertyName) =>
+        propertyName is not null && properties.TryGetValue(propertyName, out var value)
+            ? value
+            : string.Empty;
+
     internal IReadOnlyDictionary<string, string> AsMap() => properties;
 
     /// <summary>The empty computed style, returned for missing or detached elements.</summary>

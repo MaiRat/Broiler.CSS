@@ -388,6 +388,32 @@ public sealed class CssStyleEngineTests
     }
 
     [Fact]
+    public void Declared_Cascade_Is_Memoized_But_Invalidated_By_Mutation_And_Stylesheet_Changes()
+    {
+        // Guards the declared-cascade memo (CollectCascadedDeclarations cache): the
+        // hot path behind GetCascadedStyle / anchor positioning must return the same
+        // result on repeated queries yet still reflect DOM and stylesheet changes.
+        var (_, _, body) = NewDocument();
+        var div = body.OwnerDocument.CreateElement("div");
+        body.AppendChild(div);
+
+        var engine = EngineWith(".active { color: green; } div { color: red; }");
+
+        // First query populates the memo; the immediate repeat must hit it and agree.
+        Assert.Equal("red", engine.GetCascadedStyle(div)["color"]);
+        Assert.Equal("red", engine.GetCascadedStyle(div)["color"]);
+
+        // An attribute mutation raises document.Mutated -> InvalidateAll -> the memo
+        // is dropped, so the higher-specificity rule now wins.
+        div.ClassName = "active";
+        Assert.Equal("green", engine.GetCascadedStyle(div)["color"]);
+
+        // Registering another sheet must likewise invalidate the memo.
+        engine.AddStyleSheet(new CssParser().ParseStyleSheet(".active { color: blue; }"));
+        Assert.Equal("blue", engine.GetCascadedStyle(div)["color"]);
+    }
+
+    [Fact]
     public void Registered_Custom_Property_Honours_Inherits_False()
     {
         var (_, html, body) = NewDocument();
