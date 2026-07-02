@@ -25,6 +25,19 @@ public sealed partial class CssStyleEngine
     private readonly CssSelectorMatcher _matcher;
     private readonly List<StyleSheetEntry> _sheets = [];
     private readonly Dictionary<(DomElement Element, string? Pseudo), CssComputedStyle> _cache = new();
+    // Memoizes the declared cascade winners (stylesheets + optional inline) per
+    // (element, pseudo, includeInline). The declared cascade is the hot inner step
+    // shared by every GetComputedStyle/GetCascadedStyle/GetCascadedDeclaredValues
+    // query — for a single box projection it is re-derived many times over — and,
+    // unlike the computed-style _cache, was previously recomputed from scratch each
+    // time (linear selector scan of every UA + author rule). Cleared alongside
+    // _cache in InvalidateAll, so it shares the exact same correctness lifecycle.
+    private readonly Dictionary<(DomElement Element, string? Pseudo, bool IncludeInline), IReadOnlyDictionary<string, string>> _declaredCascadeCache = new();
+    // Bumped by InvalidateAll; a declared-cascade computation captures it up front and
+    // only memoizes its result if it is unchanged at the end, so a mid-cascade
+    // stylesheet re-sync (host callback during selector matching, see the _sheets
+    // snapshot note in GetCascadedDeclarationMap) can never store a stale entry.
+    private int _cacheGeneration;
     private readonly HashSet<DomDocument> _observedDocuments = [];
     private CssEnvironment _environment = CssEnvironment.Headless;
 
@@ -348,6 +361,31 @@ public sealed partial class CssStyleEngine
         Dictionary<string, string> computed,
         bool includeInlineStyle = false)
     {
+        // GetCascadedDeclarationMap returns a shared, read-only map — copy from it.
+        foreach (var kv in GetCascadedDeclarationMap(element, pseudoElement, includeInlineStyle))
+            computed[kv.Key] = kv.Value;
+    }
+
+    /// <summary>
+    /// Returns the cascade-winning declared values (registered stylesheets, plus the
+    /// inline declaration block when <paramref name="includeInlineStyle"/> is set) for
+    /// (<paramref name="element"/>, <paramref name="pseudoElement"/>), memoized for the
+    /// engine's current cache generation. The returned map is shared and must be treated
+    /// as read-only by callers. The memo is cleared by <see cref="InvalidateAll"/> on any
+    /// stylesheet / environment / document-mutation change — the same lifecycle that
+    /// governs the computed-style <see cref="_cache"/> — and a generation guard skips
+    /// caching a result whose computation raced an invalidation.
+    /// </summary>
+    private IReadOnlyDictionary<string, string> GetCascadedDeclarationMap(
+        DomElement element,
+        string? pseudoElement,
+        bool includeInlineStyle)
+    {
+        var key = (element, pseudoElement, includeInlineStyle);
+        if (_declaredCascadeCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var generation = _cacheGeneration;
         var winners = new Dictionary<string, CascadeSlot>(StringComparer.OrdinalIgnoreCase);
         var order = 0;
 
@@ -376,8 +414,17 @@ public sealed partial class CssStyleEngine
             }
         }
 
+        var map = new Dictionary<string, string>(winners.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var kv in winners)
-            computed[kv.Key] = kv.Value.Value;
+            map[kv.Key] = kv.Value.Value;
+
+        // Only memoize when no invalidation occurred while this cascade was computed:
+        // a host re-sync (see the snapshot note above) bumps the generation and clears
+        // the cache, so a result derived from the pre-re-sync sheet snapshot is stale.
+        if (generation == _cacheGeneration)
+            _declaredCascadeCache[key] = map;
+
+        return map;
     }
 
     private void CollectFromRules(
